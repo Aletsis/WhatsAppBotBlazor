@@ -69,6 +69,18 @@ public class WebhookService : IWebhookService
 
             // Obtener estado de conversación o iniciarla
             var estado = await _conversacionService.ObtenerOIniciarAsync(telefono);
+            if (estado == null)
+            {
+                _logger.LogWarning("Estado de conversación nulo, iniciando estado por defecto.");
+                await _conversacionService.ActualizarEstadoAsync(telefono, "Inicio");
+                estado = await _conversacionService.ObtenerOIniciarAsync(telefono);
+                if (estado == null)
+                {
+                    _logger.LogError("No se pudo iniciar estado de conversación.");
+                    return;
+                }
+            }
+
             await ProcesarEstado(telefono, texto, estado);
         }
         catch (Exception ex)
@@ -114,6 +126,7 @@ public class WebhookService : IWebhookService
                     }
                     else
                     {
+                        _logger.LogInformation("Cliente no encontrado al solicitar pedido, solicitando nombre.");
                         var mensageRespuesta2 = new WhatsAppMessage
                         {
                             To = telefono,
@@ -169,6 +182,25 @@ public class WebhookService : IWebhookService
 
             case "RegistroDireccion":
                 var clienteExistente = await _clienteService.ObtenerPorNumeroAsync(telefono);
+                if (clienteExistente == null)
+                {
+                    _logger.LogWarning("RegistroDireccion: no existe cliente para el teléfono {telefono}. Solicitando nombre.", telefono);
+                    var pedirNombre = new WhatsAppMessage
+                    {
+                        To = telefono,
+                        Body = "No pude encontrar tu registro. Por favor dime tu nombre completo."
+                    };
+                    await _whatsAppService.SendMessageAsync(pedirNombre);
+                    await _conversacionService.ActualizarEstadoAsync(telefono, "RegistroNombre");
+                    await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
+                    {
+                        Telefono = telefono,
+                        MensajeTexto = pedirNombre.Body,
+                        DireccionConversacion = "salida"
+                    });
+                    return;
+                }
+
                 clienteExistente.Direccion = texto;
                 await _clienteService.ActualizarAsync(clienteExistente);
                 var mensageRespuesta5 = new WhatsAppMessage
@@ -188,6 +220,24 @@ public class WebhookService : IWebhookService
 
             case "SolicitandoPedido":
                 var clientePedido = await _clienteService.ObtenerPorNumeroAsync(telefono);
+                if (clientePedido == null)
+                {
+                    _logger.LogWarning("SolicitandoPedido: no existe cliente para {telefono}. Solicitando nombre.", telefono);
+                    var pedirNombre2 = new WhatsAppMessage
+                    {
+                        To = telefono,
+                        Body = "No encuentro tu registro. Por favor envía tu nombre completo para crear tu cuenta."
+                    };
+                    await _whatsAppService.SendMessageAsync(pedirNombre2);
+                    await _conversacionService.ActualizarEstadoAsync(telefono, "RegistroNombre");
+                    await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
+                    {
+                        Telefono = telefono,
+                        MensajeTexto = pedirNombre2.Body,
+                        DireccionConversacion = "salida"
+                    });
+                    return;
+                }
 
                 var pedido = new Pedido
                 {
@@ -204,17 +254,51 @@ public class WebhookService : IWebhookService
 
             case "FormaPago":
                 var pedidoActual = await _pedidoService.ObtenerUltimoPedidoAsync(telefono);
-                if (pedidoActual != null)
+                if (pedidoActual == null)
                 {
-                    pedidoActual.FormaPago = texto.Contains("tarjeta", StringComparison.OrdinalIgnoreCase) ? "Tarjeta" : "Efectivo";
-                    await _pedidoService.ActualizarAsync(pedidoActual);
-                    await EnviarBotonesConfirmarDireccion(telefono, pedidoActual.DireccionEntrega ?? "");
+                    _logger.LogWarning("FormaPago: no existe pedido para {telefono}. Informando al usuario.", telefono);
+                    var sinPedido = new WhatsAppMessage
+                    {
+                        To = telefono,
+                        Body = "No tengo un pedido asociado. Por favor inicia un nuevo pedido escribiendo \"pedido\"."
+                    };
+                    await _whatsAppService.SendMessageAsync(sinPedido);
+                    await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
+                    {
+                        Telefono = telefono,
+                        MensajeTexto = sinPedido.Body,
+                        DireccionConversacion = "salida"
+                    });
+                    await _conversacionService.ActualizarEstadoAsync(telefono, "MenuPrincipal");
+                    return;
                 }
+
+                pedidoActual.FormaPago = texto.Contains("tarjeta", StringComparison.OrdinalIgnoreCase) ? "Tarjeta" : "Efectivo";
+                await _pedidoService.ActualizarAsync(pedidoActual);
+                await EnviarBotonesConfirmarDireccion(telefono, pedidoActual.DireccionEntrega ?? "");
                 await _conversacionService.ActualizarEstadoAsync(telefono, "ConfirmarDireccion");
                 break;
 
             case "ConfirmarDireccion":
                 var pedidoConf = await _pedidoService.ObtenerUltimoPedidoAsync(telefono);
+                if (pedidoConf == null)
+                {
+                    _logger.LogWarning("ConfirmarDireccion: no existe pedido para {telefono}.", telefono);
+                    var sinPedido2 = new WhatsAppMessage
+                    {
+                        To = telefono,
+                        Body = "No pude encontrar tu pedido. Por favor inicia un nuevo pedido con la opción \"Hacer pedido\"."
+                    };
+                    await _whatsAppService.SendMessageAsync(sinPedido2);
+                    await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
+                    {
+                        Telefono = telefono,
+                        MensajeTexto = sinPedido2.Body,
+                        DireccionConversacion = "salida"
+                    });
+                    await _conversacionService.ActualizarEstadoAsync(telefono, "MenuPrincipal");
+                    return;
+                }
 
                 if (texto.Contains("confirmar", StringComparison.OrdinalIgnoreCase))
                 {
@@ -256,9 +340,49 @@ public class WebhookService : IWebhookService
 
             case "ActualizarDireccion":
                 var clienteActual = await _clienteService.ObtenerPorNumeroAsync(telefono);
+                if (clienteActual == null)
+                {
+                    _logger.LogWarning("ActualizarDireccion: no existe cliente para {telefono}.", telefono);
+                    var pedirNombre3 = new WhatsAppMessage
+                    {
+                        To = telefono,
+                        Body = "No pude encontrar tu registro. Por favor envía tu nombre completo para crear tu cuenta."
+                    };
+                    await _whatsAppService.SendMessageAsync(pedirNombre3);
+                    await _conversacionService.ActualizarEstadoAsync(telefono, "RegistroNombre");
+                    await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
+                    {
+                        Telefono = telefono,
+                        MensajeTexto = pedirNombre3.Body,
+                        DireccionConversacion = "salida"
+                    });
+                    return;
+                }
+
                 clienteActual.Direccion = texto;
                 await _clienteService.ActualizarAsync(clienteActual);
+
                 var pedidoConfi = await _pedidoService.ObtenerUltimoPedidoAsync(telefono);
+
+                if (pedidoConfi == null)
+                {
+                    _logger.LogWarning("ActualizarDireccion: no existe pedido para {telefono} al actualizar dirección.", telefono);
+                    var sinPedido3 = new WhatsAppMessage
+                    {
+                        To = telefono,
+                        Body = "No encontré el pedido asociado. Por favor inicia un nuevo pedido."
+                    };
+                    await _whatsAppService.SendMessageAsync(sinPedido3);
+                    await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
+                    {
+                        Telefono = telefono,
+                        MensajeTexto = sinPedido3.Body,
+                        DireccionConversacion = "salida"
+                    });
+                    await _conversacionService.ActualizarEstadoAsync(telefono, "MenuPrincipal");
+                    return;
+                }
+                
                 pedidoConfi.Folio = _pedidoService.GenerarFolio();
                 pedidoConfi.Estado = "En espera";
                 await _pedidoService.ActualizarAsync(pedidoConfi);
