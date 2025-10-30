@@ -2,6 +2,7 @@
 using WhatsAppBot.Data;
 using WhatsAppBot.Models;
 using WhatsAppBot.Services.Interfaces;
+using Microsoft.Extensions.Caching.Distributed;
 
 namespace WhatsAppBot.Services;
 
@@ -14,6 +15,7 @@ public class WebhookService : IWebhookService
     private readonly IPedidoService _pedidoService;
     private readonly IMessageService _messageService;
     private readonly ILogger<WebhookService> _logger;
+    private readonly IDistributedCache _cache;
 
     public WebhookService(
         IWhatsAppService whatsAppService,
@@ -22,7 +24,8 @@ public class WebhookService : IWebhookService
         IClienteService clienteService,
         IPedidoService pedidoService,
         IMessageService messageService,
-        ILogger<WebhookService> logger)
+        ILogger<WebhookService> logger,
+        IDistributedCache cache)
     {
         _whatsAppService = whatsAppService;
         _historyMessageService = historyMessageService;
@@ -31,6 +34,7 @@ public class WebhookService : IWebhookService
         _pedidoService = pedidoService;
         _messageService = messageService;
         _logger = logger;
+        _cache = cache;
     }
 
     public async Task ProcessIncomingMessageAsync(WebhookPayload payload)
@@ -46,16 +50,33 @@ public class WebhookService : IWebhookService
             _logger.LogInformation("Verificamos que payload contenga un mensaje o un numero y que sea tipo texto o interactivo.");
             if (message == null || string.IsNullOrEmpty(message.From))
                 return;
+
+            // Verificar duplicados
+            if (await EsMensajeDuplicado(message.Id))
+            {
+                _logger.LogInformation($"Mensaje duplicado detectado, ID: {message.Id}");
+                return;
+            }
+            
             if (message.Type != "text" && message.Type != "interactive")
                 return;
-            
-            string telefono = message.From;
+
             string texto = message.Text?.Body?.Trim()
                 ?? message.Interactive?.Button_Reply?.Title
                 ?? message.Interactive?.List_Reply?.Title
                 ?? "";
-            string transformed = telefono.Remove(2, 1);
-            telefono = transformed;
+
+            string telefono;
+            try
+            {
+                telefono = NormalizarTelefono(message.From);
+            }
+            catch (ArgumentException ex)
+            {
+                _logger.LogWarning(ex, $"Número de teléfono inválido: {message.From}");
+                return;
+            }
+
             _logger.LogInformation($"📩 Mensaje recibido de {telefono}: {texto}");
 
             // Registrar el mensaje recibido
@@ -90,6 +111,7 @@ public class WebhookService : IWebhookService
     }
     private async Task ProcesarEstado(string telefono, string texto, EstadoConversacion estado)
     {
+        string mensajeRespuesta;
         switch (estado.EstadoActual)
         {
             case "Inicio":
@@ -108,56 +130,22 @@ public class WebhookService : IWebhookService
                     var cliente = await _clienteService.ObtenerPorNumeroAsync(telefono);
                     if (cliente != null)
                     {
-                        var mensageRespuesta = new WhatsAppMessage
-                        {
-                            To = telefono,
-                            Body = $"Perfecto {cliente.Nombre}, ¿cuál será tu pedido?\nPuedes escribir varios productos en un solo mensaje."
-                        };
-
-                        await _whatsAppService.SendMessageAsync(mensageRespuesta);
+                        mensajeRespuesta = $"Perfecto {cliente.Nombre}, ¿cuál será tu pedido?\nPuedes escribir varios productos en un solo mensaje.";
+                        await EnviarYRegistrarMensaje(telefono, mensajeRespuesta, false);
                         await _conversacionService.ActualizarEstadoAsync(telefono, "SolicitandoPedido");
-                        // Registrar el mensaje enviado
-                        await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
-                        {
-                            Telefono = telefono,
-                            MensajeTexto = mensageRespuesta.Body,
-                            DireccionConversacion = "salida"
-                        });
                     }
                     else
                     {
                         _logger.LogInformation("Cliente no encontrado al solicitar pedido, solicitando nombre.");
-                        var mensageRespuesta2 = new WhatsAppMessage
-                        {
-                            To = telefono,
-                            Body = "Antes de hacer tu pedido, necesito tu nombre completo 🧾"
-                        };
-
-                        await _whatsAppService.SendMessageAsync(mensageRespuesta2);
-
+                        mensajeRespuesta = "Antes de hacer tu pedido, necesito tu nombre completo 🧾";
+                        await EnviarYRegistrarMensaje(telefono, mensajeRespuesta, false);
                         await _conversacionService.ActualizarEstadoAsync(telefono, "RegistroNombre");
-                        await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
-                        {
-                            Telefono = telefono,
-                            MensajeTexto = mensageRespuesta2.Body,
-                            DireccionConversacion = "salida"
-                        });
                     }
                 }
                 else
                 {
-                    var mensageRespuesta3 = new WhatsAppMessage
-                    {
-                        To = telefono,
-                        Body = "Lo siento no entendi tu respuesta."
-                    };
-                    await _whatsAppService.SendMessageAsync(mensageRespuesta3);
-                    await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
-                    {
-                        Telefono = telefono,
-                        MensajeTexto = mensageRespuesta3.Body,
-                        DireccionConversacion = "salida"
-                    });
+                    mensajeRespuesta = "Lo siento no entendi tu respuesta.";
+                    await EnviarYRegistrarMensaje(telefono, mensajeRespuesta, false);
                     await MostrarMenuPrincipal(telefono);
                 }
                 break;
@@ -165,19 +153,9 @@ public class WebhookService : IWebhookService
             case "RegistroNombre":
                 var nuevoCliente = new Cliente { Telefono = telefono, Nombre = texto };
                 await _clienteService.CrearAsync(nuevoCliente);
-                var mensageRespuesta4 = new WhatsAppMessage
-                {
-                    To = telefono,
-                    Body = "Gracias 👍 Ahora, por favor escribe tu dirección completa (calle, número, colonia, ciudad)."
-                };
-                await _whatsAppService.SendMessageAsync(mensageRespuesta4);
+                mensajeRespuesta = $"👍 ¡Gracias {texto}!\n Ahora, por favor escribe tu dirección completa (calle, número, colonia, ciudad).";
+                await EnviarYRegistrarMensaje(telefono, mensajeRespuesta, false);
                 await _conversacionService.ActualizarEstadoAsync(telefono, "RegistroDireccion");
-                await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
-                {
-                    Telefono = telefono,
-                    MensajeTexto = mensageRespuesta4.Body,
-                    DireccionConversacion = "salida"
-                });
                 break;
 
             case "RegistroDireccion":
@@ -185,37 +163,16 @@ public class WebhookService : IWebhookService
                 if (clienteExistente == null)
                 {
                     _logger.LogWarning("RegistroDireccion: no existe cliente para el teléfono {telefono}. Solicitando nombre.", telefono);
-                    var pedirNombre = new WhatsAppMessage
-                    {
-                        To = telefono,
-                        Body = "No pude encontrar tu registro. Por favor dime tu nombre completo."
-                    };
-                    await _whatsAppService.SendMessageAsync(pedirNombre);
+                    mensajeRespuesta = "No pude encontrar tu registro. Por favor dime tu nombre completo.";
+                    await EnviarYRegistrarMensaje(telefono, mensajeRespuesta, false);
                     await _conversacionService.ActualizarEstadoAsync(telefono, "RegistroNombre");
-                    await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
-                    {
-                        Telefono = telefono,
-                        MensajeTexto = pedirNombre.Body,
-                        DireccionConversacion = "salida"
-                    });
                     return;
                 }
 
                 clienteExistente.Direccion = texto;
                 await _clienteService.ActualizarAsync(clienteExistente);
-                var mensageRespuesta5 = new WhatsAppMessage
-                {
-                    To = telefono,
-                    Body = $"Perfecto {clienteExistente.Nombre}. Ahora, ¿cuál será tu pedido?"
-                };
-                await _whatsAppService.SendMessageAsync(mensageRespuesta5);
+                mensajeRespuesta = $"Perfecto {clienteExistente.Nombre}. Ahora, ¿cuál será tu pedido?";
                 await _conversacionService.ActualizarEstadoAsync(telefono, "SolicitandoPedido");
-                await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
-                {
-                    Telefono = telefono,
-                    MensajeTexto = mensageRespuesta5.Body,
-                    DireccionConversacion = "salida"
-                });
                 break;
 
             case "SolicitandoPedido":
@@ -223,19 +180,9 @@ public class WebhookService : IWebhookService
                 if (clientePedido == null)
                 {
                     _logger.LogWarning("SolicitandoPedido: no existe cliente para {telefono}. Solicitando nombre.", telefono);
-                    var pedirNombre2 = new WhatsAppMessage
-                    {
-                        To = telefono,
-                        Body = "No encuentro tu registro. Por favor envía tu nombre completo para crear tu cuenta."
-                    };
-                    await _whatsAppService.SendMessageAsync(pedirNombre2);
+                    mensajeRespuesta = "No encuentro tu registro. Por favor envía tu nombre completo para crear tu cuenta.";
+                    await EnviarYRegistrarMensaje(telefono, mensajeRespuesta, false);
                     await _conversacionService.ActualizarEstadoAsync(telefono, "RegistroNombre");
-                    await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
-                    {
-                        Telefono = telefono,
-                        MensajeTexto = pedirNombre2.Body,
-                        DireccionConversacion = "salida"
-                    });
                     return;
                 }
 
@@ -284,18 +231,8 @@ public class WebhookService : IWebhookService
                 if (pedidoConf == null)
                 {
                     _logger.LogWarning("ConfirmarDireccion: no existe pedido para {telefono}.", telefono);
-                    var sinPedido2 = new WhatsAppMessage
-                    {
-                        To = telefono,
-                        Body = "No pude encontrar tu pedido. Por favor inicia un nuevo pedido con la opción \"Hacer pedido\"."
-                    };
-                    await _whatsAppService.SendMessageAsync(sinPedido2);
-                    await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
-                    {
-                        Telefono = telefono,
-                        MensajeTexto = sinPedido2.Body,
-                        DireccionConversacion = "salida"
-                    });
+                    mensajeRespuesta = "No pude encontrar tu pedido. Por favor inicia un nuevo pedido con la opción \"Hacer pedido\".";
+                    await EnviarYRegistrarMensaje(telefono, mensajeRespuesta, false);
                     await _conversacionService.ActualizarEstadoAsync(telefono, "MenuPrincipal");
                     return;
                 }
@@ -305,35 +242,14 @@ public class WebhookService : IWebhookService
                     pedidoConf.Folio = _pedidoService.GenerarFolio();
                     pedidoConf.Estado = "En espera";
                     await _pedidoService.ActualizarAsync(pedidoConf);
-
-                    var mensajeRespuesta6 = new WhatsAppMessage
-                    {
-                        To = telefono,
-                        Body = $"✅ Gracias por tu pedido, {pedidoConf.Cliente?.Nombre}.\nTu folio es *{pedidoConf.Folio}*.\nTu pedido está en espera de ser surtido."
-                    };
-                    await _whatsAppService.SendMessageAsync(mensajeRespuesta6);
-                    await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
-                    {
-                        Telefono = telefono,
-                        MensajeTexto = mensajeRespuesta6.Body,
-                        DireccionConversacion = "salida"
-                    });
+                    mensajeRespuesta = $"✅ Gracias por tu pedido, {pedidoConf.Cliente?.Nombre}.\nTu folio es *{pedidoConf.Folio}*.\nTu pedido está en espera de ser surtido.";
+                    await EnviarYRegistrarMensaje(telefono, mensajeRespuesta, false);
                     await _conversacionService.ActualizarEstadoAsync(telefono, "Finalizado");
                 }
                 else
                 {
-                    var mensajeRespuesta8 = new WhatsAppMessage
-                    {
-                        To = telefono,
-                        Body = "Por favor envíame la dirección corregida:"
-                    };
-                    await _whatsAppService.SendMessageAsync(mensajeRespuesta8);
-                    await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
-                    {
-                        Telefono = telefono,
-                        MensajeTexto = mensajeRespuesta8.Body,
-                        DireccionConversacion = "salida"
-                    });
+                    mensajeRespuesta = "Entendido, vamos a corregir la dirección.\n Por favor escribe tu dirección completa (calle, número, colonia, ciudad).";
+                    await EnviarYRegistrarMensaje(telefono, mensajeRespuesta, false);
                     await _conversacionService.ActualizarEstadoAsync(telefono, "ActualizarDireccion");
                 }
                 break;
@@ -343,19 +259,9 @@ public class WebhookService : IWebhookService
                 if (clienteActual == null)
                 {
                     _logger.LogWarning("ActualizarDireccion: no existe cliente para {telefono}.", telefono);
-                    var pedirNombre3 = new WhatsAppMessage
-                    {
-                        To = telefono,
-                        Body = "No pude encontrar tu registro. Por favor envía tu nombre completo para crear tu cuenta."
-                    };
-                    await _whatsAppService.SendMessageAsync(pedirNombre3);
+                    mensajeRespuesta = "No pude encontrar tu registro. Por favor dime tu nombre completo.";
+                    await EnviarYRegistrarMensaje(telefono, mensajeRespuesta, false);
                     await _conversacionService.ActualizarEstadoAsync(telefono, "RegistroNombre");
-                    await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
-                    {
-                        Telefono = telefono,
-                        MensajeTexto = pedirNombre3.Body,
-                        DireccionConversacion = "salida"
-                    });
                     return;
                 }
 
@@ -367,18 +273,8 @@ public class WebhookService : IWebhookService
                 if (pedidoConfi == null)
                 {
                     _logger.LogWarning("ActualizarDireccion: no existe pedido para {telefono} al actualizar dirección.", telefono);
-                    var sinPedido3 = new WhatsAppMessage
-                    {
-                        To = telefono,
-                        Body = "No encontré el pedido asociado. Por favor inicia un nuevo pedido."
-                    };
-                    await _whatsAppService.SendMessageAsync(sinPedido3);
-                    await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
-                    {
-                        Telefono = telefono,
-                        MensajeTexto = sinPedido3.Body,
-                        DireccionConversacion = "salida"
-                    });
+                    mensajeRespuesta = "No encontré el pedido asociado. Por favor inicia un nuevo pedido.";
+                    await EnviarYRegistrarMensaje(telefono, mensajeRespuesta, false);
                     await _conversacionService.ActualizarEstadoAsync(telefono, "MenuPrincipal");
                     return;
                 }
@@ -386,19 +282,9 @@ public class WebhookService : IWebhookService
                 pedidoConfi.Folio = _pedidoService.GenerarFolio();
                 pedidoConfi.Estado = "En espera";
                 await _pedidoService.ActualizarAsync(pedidoConfi);
-                var mensajeRespuesta7 = new WhatsAppMessage
-                {
-                    To = telefono,
-                    Body = $"✅ Gracias por tu pedido, {pedidoConfi.Cliente?.Nombre}.\nTu folio es *{pedidoConfi.Folio}*.\nTu pedido está en espera de ser surtido."
-                };
-                await _whatsAppService.SendMessageAsync(mensajeRespuesta7);
-                    await _conversacionService.ActualizarEstadoAsync(telefono, "Finalizado");
-                await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
-                {
-                    Telefono = telefono,
-                    MensajeTexto = mensajeRespuesta7.Body,
-                    DireccionConversacion = "salida"
-                });
+                mensajeRespuesta = $"✅ Gracias por tu pedido, {pedidoConfi.Cliente?.Nombre}.\nTu folio es *{pedidoConfi.Folio}*.\nTu pedido está en espera de ser surtido.";
+                await EnviarYRegistrarMensaje(telefono, mensajeRespuesta, false);
+                await _conversacionService.ActualizarEstadoAsync(telefono, "Finalizado");
                 break;
         }
     }
@@ -439,5 +325,78 @@ public class WebhookService : IWebhookService
             $"Por favor confirma tu dirección:\n📍 {direccion}",
             new[] { "✅ Confirmar", "✏️ Corregir" }
         );
+    }
+    private async Task EnviarYRegistrarMensaje(string telefono, string mensaje, bool esInteractivo = false, string[]? botones = null)
+    {
+        if (esInteractivo && botones != null)
+        {
+            await _whatsAppService.SendInteractiveMessageAsync(telefono, mensaje, botones);
+        }
+        else
+        {
+            await _whatsAppService.SendMessageAsync(new WhatsAppMessage
+            {
+                To = telefono,
+                Body = mensaje
+            });
+        }
+
+        await _historyMessageService.GuardarMensajeEnHistorial(new MensajeWhatsApp
+        {
+            Telefono = telefono,
+            MensajeTexto = mensaje,
+            DireccionConversacion = "salida"
+        });
+    }
+    private string NormalizarTelefono(string telefono)
+    {
+        if (string.IsNullOrWhiteSpace(telefono))
+            throw new ArgumentException("El número de teléfono no puede estar vacío");
+
+        // Eliminar todos los caracteres no numéricos
+        var numerosLimpios = new string(telefono.Where(char.IsDigit).ToArray());
+
+        // Validar longitud (asumiendo formato mexicano: 12 dígitos incluyendo 52)
+        if (numerosLimpios.Length < 10)
+            throw new ArgumentException($"Longitud de teléfono inválida: {numerosLimpios.Length} dígitos");
+
+        // Si comienza con 521, remover el 1
+        if (numerosLimpios.StartsWith("521"))
+        {
+            numerosLimpios = "52" + numerosLimpios.Substring(3);
+        }
+        // Si no comienza con 52, añadirlo
+        else if (!numerosLimpios.StartsWith("52"))
+        {
+            numerosLimpios = "52" + numerosLimpios;
+        }
+
+        // Validar longitud final (debe ser 12 dígitos: 52 + 10 dígitos)
+        if (numerosLimpios.Length != 12)
+            throw new ArgumentException($"Longitud de teléfono final inválida: {numerosLimpios.Length} dígitos");
+
+        return numerosLimpios;
+    }
+    private async Task<bool> EsMensajeDuplicado(string messageId)
+    {
+        if (string.IsNullOrEmpty(messageId))
+            return false;
+
+        var cacheKey = $"msg_{messageId}";
+        var existente = await _cache.GetStringAsync(cacheKey);
+        
+        if (existente != null)
+            return true;
+
+        // Guardar el ID por 24 horas para prevenir duplicados
+        await _cache.SetStringAsync(
+            cacheKey,
+            "1",
+            new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(24)
+            });
+
+        return false;
     }
 }

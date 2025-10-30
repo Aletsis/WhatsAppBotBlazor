@@ -34,6 +34,11 @@ builder.Services.AddSignalR();
 builder.Services.AddMudServices();
 builder.Services.AddHttpClient();
 
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = builder.Configuration.GetConnectionString("Redis");
+});
+
 builder.Services.AddDbContext<WhatsAppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
