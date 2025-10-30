@@ -1,0 +1,95 @@
+#Archivos y carpetas de compilación
+bin/
+obj/
+out/
+dist/
+
+#Configuraciones de usuario y del entorno
+*.user
+*.suo
+*.env
+*.userosscache
+*.sln.docstates
+.vscode/
+.idea/
+
+#Archivos de publicacion
+*.Publish.xml
+*.pubxml
+*.pubxml.user
+*.Publishsettings
+
+#Archivos temporales y de caché
+*.tmp
+*.temp
+*.bak
+*.log
+*.cache
+*.pdb
+*.db
+*.db-shm
+*.db-wal
+*.mdb
+*.ldf
+*.ndf
+
+#Configuracion del sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+#Dependencias y paquetes
+node_modules/
+packages/
+
+#Archivos generados por VSCode
+*.ncb
+*.aps
+*.ilk
+*.obj
+*.pch
+*.pdb
+*.idb
+*.res
+*.tlb
+*.tli
+*.tlh
+*.bak
+*.log
+*.vspscc
+*.vssscc
+*.vscode/
+*.vs/
+
+#Archivos de publicacion temporales
+/wwwroot/dist
+/wwwroot/build/
+/wwwroot/node_modules/
+/wwwroot/lib/
+/wwwroot/css/*-bundle.css
+/wwwroot/js/*-bundle.js
+
+#Configuracion local del usuario
+*.local.json
+appsettings.Local.json
+appsettings.Development.json
+
+#Certificados y claves
+*.pfx
+*.key
+*.cer
+*.crt
+*.pem
+
+#Archivos de prueba o cobertura
+*.coverage
+*.coveragexml
+TestResults/
+coverage/
+coverage*.json
+*.code-workspace
+
+#Logs de ejecucion
+logs/
+*.log
+log.txt

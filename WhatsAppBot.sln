@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.11.35312.102
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WhatsAppBot", "WhatsAppBot.csproj", "{CA90B7CF-0DEC-41DD-91A6-BA1D5659699B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CA90B7CF-0DEC-41DD-91A6-BA1D5659699B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CA90B7CF-0DEC-41DD-91A6-BA1D5659699B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CA90B7CF-0DEC-41DD-91A6-BA1D5659699B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CA90B7CF-0DEC-41DD-91A6-BA1D5659699B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {466C6F90-C07E-4980-86E6-D64424CC3207}
+	EndGlobalSection
+EndGlobal

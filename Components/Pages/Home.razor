@@ -1,0 +1,106 @@
+﻿@page "/"
+@using WhatsAppBot.Models
+@inject IWhatsAppService WhatsAppService
+@inject HttpClient Http
+@inject IConfiguration Config
+
+<MudPaper Elevation="2" Class="pa-6">
+    <MudText Typo="Typo.h5" GutterBottom="true">
+        Enviar mensaje por WhatsApp
+    </MudText>
+
+    <MudText Typo="Typo.body2" Class="mb-4 text-secondary">
+        Usa el formato internacional del número (por ejemplo: 5215555555555)
+    </MudText>
+
+    <MudForm @ref="form">
+        <MudTextField @bind-Value="telefono"
+                      Label="Número de WhatsApp"
+                      Variant="Variant.Outlined"
+                      FullWidth="true"
+                      Required="true"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Phone" />
+
+        <MudTextField @bind-Value="mensaje"
+                      Label="Mensaje"
+                      Variant="Variant.Outlined"
+                      FullWidth="true"
+                      Lines="4"
+                      Class="mt-3"
+                      Required="true"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Message" />
+
+        <MudButton OnClick="EnviarMensaje"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Class="mt-4"
+                   Disabled="@enviando">
+            @(enviando ? "Enviando..." : "Enviar")
+        </MudButton>
+    </MudForm>
+
+    @if (resultado is not null)
+    {
+        <MudAlert Severity="@resultado.Value.Severity" Class="mt-3">
+            @resultado.Value.Mensaje
+        </MudAlert>
+    }
+</MudPaper>
+
+@code {
+    private MudForm form = default!;
+    string telefono = string.Empty;
+    string mensaje = string.Empty;
+    bool enviando = false;
+    (Severity Severity, string Mensaje)? resultado;
+    private WhatsAppMessage menssage = new WhatsAppMessage();
+
+    async Task EnviarMensaje()
+    {
+        await form.Validate();
+
+        if (!form.IsValid)
+        {
+            resultado = (Severity.Error, "Por favor completa todos los campos.");
+            return;
+        }
+
+        enviando = true;
+        resultado = null;
+        menssage.To = telefono;
+        menssage.Body = mensaje;
+        try
+        {
+            /*var response = await Http.PostAsJsonAsync("/api/whatsapp/send", new
+            {
+            To = telefono,
+            Body = mensaje
+            });
+
+            enviando = false;
+
+            if (response.IsSuccessStatusCode)
+                resultado = (Severity.Success, "✅ Mensaje enviado correctamente.");
+                else
+                resultado = (Severity.Error, "❌ Error al enviar mensaje.");*/
+
+            var result = await WhatsAppService.SendMessageAsync(menssage);
+            enviando = false;
+            if (result)
+            {
+                resultado = (Severity.Success, "✅ Mensaje enviado correctamente.");
+            }
+            else
+            {
+                resultado = (Severity.Error, "❌ Error al enviar mensaje.");
+            }
+        }
+        catch (Exception ex)
+        {
+            enviando = false;
+            resultado = (Severity.Error, $"Error: {ex.Message}");
+        }
+    }
+}

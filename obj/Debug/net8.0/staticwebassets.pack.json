@@ -1,0 +1,33 @@
+{
+  "Files": [
+    {
+      "Id": "C:\\Users\\B10 Caja 2\\source\\repos\\WhatsAppBot\\obj\\Debug\\net8.0\\scopedcss\\projectbundle\\WhatsAppBot.bundle.scp.css",
+      "PackagePath": "staticwebassets\\WhatsAppBot.bundle.scp.css"
+    },
+    {
+      "Id": "C:\\Users\\B10 Caja 2\\source\\repos\\WhatsAppBot\\wwwroot\\app.css",
+      "PackagePath": "staticwebassets\\app.css"
+    },
+    {
+      "Id": "C:\\Users\\B10 Caja 2\\source\\repos\\WhatsAppBot\\wwwroot\\favicon.png",
+      "PackagePath": "staticwebassets\\favicon.png"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.WhatsAppBot.Microsoft.AspNetCore.StaticWebAssets.props",
+      "PackagePath": "build\\Microsoft.AspNetCore.StaticWebAssets.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.build.WhatsAppBot.props",
+      "PackagePath": "build\\WhatsAppBot.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.buildMultiTargeting.WhatsAppBot.props",
+      "PackagePath": "buildMultiTargeting\\WhatsAppBot.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.buildTransitive.WhatsAppBot.props",
+      "PackagePath": "buildTransitive\\WhatsAppBot.props"
+    }
+  ],
+  "ElementsToRemove": []
+}

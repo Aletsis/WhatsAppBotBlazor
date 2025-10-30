@@ -1,0 +1,18 @@
+﻿@inherits LayoutComponentBase
+@using MudBlazor
+
+<MudThemeProvider Theme="@CustomMudTheme.Theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+<MudLayout>
+    <MudAppBar Color="Color.Primary" Elevation="2">
+        <MudText Typo="Typo.h6">🤖 WhatsApp Bot</MudText>
+    </MudAppBar>
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8 pa-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>

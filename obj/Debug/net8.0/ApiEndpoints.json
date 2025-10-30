@@ -1,0 +1,60 @@
+[
+  {
+    "ContainingType": "WhatsAppBot.Controllers.WhatsAppController",
+    "Method": "SendMessage",
+    "RelativePath": "api/WhatsApp/send",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "message",
+        "Type": "WhatsAppBot.Models.WhatsAppMessage",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "WhatsAppBot.Controllers.WhatsAppController",
+    "Method": "VerifyWebhook",
+    "RelativePath": "api/WhatsApp/webhook",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "hub.mode",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "hub.challenge",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "hub.verify_token",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "WhatsAppBot.Controllers.WhatsAppController",
+    "Method": "ReceiveMessage",
+    "RelativePath": "api/WhatsApp/webhook",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "payload",
+        "Type": "WhatsAppBot.Models.WebhookPayload",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  }
+]

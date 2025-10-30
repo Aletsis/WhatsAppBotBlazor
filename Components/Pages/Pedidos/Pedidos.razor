@@ -1,0 +1,121 @@
+@page "/pedidos"
+@using WhatsAppBot.Models
+@inject IPedidoService PedidosService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@using Microsoft.AspNetCore.SignalR.Client
+
+<MudPaper Class="p-4">
+    <MudText Typo="Typo.h5">📦 Pedidos en tiempo real</MudText>
+    @if (_isLoading)
+    {
+        <MudProgressCircular Indeterminate="true" Size="Size.Large" Color="Color.Primary" />
+    }
+    else if (_pedidos is not null && _pedidos.Any())
+    {
+        <MudTable Items="_pedidos" Hover="true" Dense="true" Bordered="true">
+            <HeaderContent>
+                <MudTh>Folio</MudTh>
+                <MudTh>Cliente</MudTh>
+                <MudTh>Teléfono</MudTh>
+                <MudTh>Dirección</MudTh>
+                <MudTh>Pedido</MudTh>
+                <MudTh>Pago</MudTh>
+                <MudTh>Estado</MudTh>
+                <MudTh>Fecha</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.Folio</MudTd>
+                <MudTd>@context.Cliente?.Nombre</MudTd>
+                <MudTd>@context.Cliente?.Telefono</MudTd>
+                <MudTd>@context.DireccionEntrega</MudTd>
+                <MudTd>@context.DetallePedido</MudTd>
+                <MudTd>@context.FormaPago</MudTd>
+                <MudTd>@context.Estado</MudTd>
+                <MudTd>@context.FechaPedido.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                <MudTd>
+                    <MudButton Color="Color.Primary" Variant="Variant.Outlined" OnClick="@(() => CambiarEstado(context, "En proceso"))">Procesar</MudButton>
+                    <MudButton Color="Color.Success" Variant="Variant.Outlined" OnClick="@(() => CambiarEstado(context, "Entregado"))">Entregar</MudButton>
+                    <MudButton Color="Color.Error" Variant="Variant.Outlined" OnClick="@(() => CambiarEstado(context, "Cancelado"))">Cancelar</MudButton>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+    else
+    {
+        <MudText>No hay pedidos registrados.</MudText>
+    }
+    
+</MudPaper>
+
+@code {
+    private List<Pedido> _pedidos = new List<Pedido>();
+    private HubConnection? _hubConnection;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Console.WriteLine("🔄 Inicializando Pedidos.razor...");
+            _pedidos = await PedidosService.ObtenerPedidosAsync();
+            Console.WriteLine($"✅ Pedidos cargados: {_pedidos.Count}");
+
+            Console.WriteLine("🔄 Configurando SignalR HubConnection...");
+            _hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/pedidoshub"))
+            .Build();
+            Console.WriteLine("✅ HubConnection configurado.");
+            Console.WriteLine("🔄 Registrando manejadores de eventos...");
+            _hubConnection.On<Pedido>("PedidoRecibido", pedido =>
+            {
+                _pedidos.Insert(0, pedido);
+                InvokeAsync(StateHasChanged);
+                Snackbar.Add($"Nuevo pedido de {pedido.Cliente.Nombre}", Severity.Info);
+            });
+            Console.WriteLine("✅ Manejadores de eventos registrados.");
+            Console.WriteLine("🔄 Iniciando conexión HubConnection...");
+            _hubConnection.On<Pedido>("PedidoActualizado", pedido =>
+            {
+                var p = _pedidos.FirstOrDefault(x => x.PedidoId == pedido.PedidoId);
+                if (p != null)
+                {
+                    p.Estado = pedido.Estado;
+                    InvokeAsync(StateHasChanged);
+                } 
+                
+            });
+            Console.WriteLine("✅ Conexión HubConnection iniciada.");
+            Console.WriteLine("🔄 Conectando al Hub...");
+            await _hubConnection.StartAsync();
+            Console.WriteLine("✅ Conectado al Hub.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error inicializando Pedidos.razor: {ex.Message}");
+            Snackbar.Add("Error al conectar con el servidor en tiempo real.", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+        
+    }
+
+    private async Task CambiarEstado(Pedido pedido, string nuevoEstado)
+    {
+        if (pedido != null) return;
+        try
+        {
+            await PedidosService.ActualizarEstadoAsync(pedido.PedidoId, nuevoEstado);
+            pedido.Estado = nuevoEstado;
+            Snackbar.Add($"Estado cambiado a {nuevoEstado}", Severity.Success);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al actualizar estado: {ex.Message}", Severity.Error);
+        }
+    }
+}
