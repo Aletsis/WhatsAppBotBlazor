@@ -1,30 +1,30 @@
-using WhatsAppBot.Data;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using WhatsAppBot.Models;
 using WhatsAppBot.Services.Interfaces;
-using Microsoft.EntityFrameworkCore;
+using WhatsAppBot.Data.Repositories.Interfaces;
 
 namespace WhatsAppBot.Services
 {
     public class HistoryMessageService : IHistoryMessageService
     {
-        private readonly WhatsAppDbContext _context;
+        private readonly IUnitOfWork _uow;
 
-        public HistoryMessageService(WhatsAppDbContext context)
+        public HistoryMessageService(IUnitOfWork uow)
         {
-            _context = context;
+            _uow = uow;
         }
 
         public async Task GuardarMensajeEnHistorial(MensajeWhatsApp mensaje)
         {
-            _context.MensajesWhatsApp.Add(mensaje);
-            await _context.SaveChangesAsync();
+            await _uow.Mensajes.AddAsync(mensaje);
+            await _uow.CompleteAsync();
         }
 
         public async Task<List<MensajeWhatsApp>> ObtenerHistorialPorTelefono(string telefono)
         {
-            return await _context.MensajesWhatsApp
-                .Where(m => m.Telefono == telefono)
-                .ToListAsync();
+            var list = (await _uow.Mensajes.GetByPhoneAsync(telefono));
+            return new List<MensajeWhatsApp>(list);
         }
     }
 }

@@ -5,6 +5,8 @@ using WhatsAppBot.Services;
 using WhatsAppBot.Data;
 using Microsoft.EntityFrameworkCore;
 using WhatsAppBot.Hubs;
+using WhatsAppBot.Data.Repositories.Interfaces;
+using WhatsAppBot.Data.Repositories;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -52,6 +54,11 @@ builder.Services.AddScoped<IConversacionService, ConversacionService>();
 builder.Services.AddScoped<IPedidoService, PedidoService>();
 builder.Services.AddScoped<IHistoryMessageService, HistoryMessageService>();
 builder.Services.AddScoped<IMessageService, MessageService>();
+builder.Services.AddScoped<IClienteRepository, ClienteRepository>();
+builder.Services.AddScoped<IPedidoRepository, PedidoRepository>();
+builder.Services.AddScoped<IMensajeRepository, MensajeRepository>();
+builder.Services.AddScoped<IEstadoConversacionRepository, EstadoConversacionRepository>();
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddControllers();
 
 var app = builder.Build();

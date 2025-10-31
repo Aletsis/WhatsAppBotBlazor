@@ -1,23 +1,21 @@
-﻿using Microsoft.EntityFrameworkCore;
-using WhatsAppBot.Data;
-using WhatsAppBot.Models;
+﻿using WhatsAppBot.Models;
 using WhatsAppBot.Services.Interfaces;
+using WhatsAppBot.Data.Repositories.Interfaces;
 
 namespace WhatsAppBot.Services
 {
     public class ConversacionService : IConversacionService
     {
-        private readonly WhatsAppDbContext _context;
+        private readonly IUnitOfWork _uow;
 
-        public ConversacionService(WhatsAppDbContext context)
+        public ConversacionService(IUnitOfWork uow)
         {
-            _context = context;
+            _uow = uow;
         }
 
         public async Task<EstadoConversacion> ObtenerOIniciarAsync(string numero)
         {
-            var conv = await _context.EstadosConversacion
-                .FirstOrDefaultAsync(c => c.Telefono == numero);
+            var conv = await _uow.EstadosConversacion.GetByPhoneAsync(numero);
 
             if (conv == null)
             {
@@ -27,8 +25,9 @@ namespace WhatsAppBot.Services
                     EstadoActual = "Inicio",
                     UltimaActualizacion = DateTime.Now,
                 };
-                _context.EstadosConversacion.Add(conv);
-                await _context.SaveChangesAsync();
+
+                await _uow.EstadosConversacion.AddAsync(conv);
+                await _uow.CompleteAsync();
             }
 
             return conv;
@@ -36,15 +35,13 @@ namespace WhatsAppBot.Services
 
         public async Task ActualizarEstadoAsync(string numero, string nuevoEstado, string? datosTemporales = null)
         {
-            var conv = await _context.EstadosConversacion
-                .FirstOrDefaultAsync(c => c.Telefono == numero);
-
+            var conv = await _uow.EstadosConversacion.GetByPhoneAsync(numero);
             if (conv != null)
             {
                 conv.EstadoActual = nuevoEstado;
                 conv.UltimaActualizacion = DateTime.Now;
-                _context.EstadosConversacion.Update(conv);
-                await _context.SaveChangesAsync();
+                await _uow.EstadosConversacion.UpdateAsync(conv);
+                await _uow.CompleteAsync();
             }
         }
     }

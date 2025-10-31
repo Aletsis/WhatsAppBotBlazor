@@ -1,71 +1,66 @@
-﻿using Microsoft.EntityFrameworkCore;
-using WhatsAppBot.Data;
-using WhatsAppBot.Models;
+﻿using WhatsAppBot.Models;
 using WhatsAppBot.Services.Interfaces;
+using WhatsAppBot.Data.Repositories.Interfaces;
 
 namespace WhatsAppBot.Services
 {
     public class PedidoService : IPedidoService
     {
-        private readonly WhatsAppDbContext _context;
+        private readonly IUnitOfWork _uow;
 
-        public PedidoService(WhatsAppDbContext context)
+        public PedidoService(IUnitOfWork uow)
         {
-            _context = context;
+            _uow = uow;
         }
 
         public async Task<List<Pedido>> ObtenerPedidosAsync()
         {
-            return await _context.Pedidos.OrderByDescending(p => p.FechaPedido).ToListAsync();
+            var list = (await _uow.Pedidos.GetAllAsync()).ToList();
+            return list.OrderByDescending(p => p.FechaPedido).ToList();
         }
 
         public async Task<Pedido?> ObtenerPedidoPorIdAsync(int id)
         {
-            return await _context.Pedidos.FindAsync(id);
+            return await _uow.Pedidos.GetByIdAsync(id);
         }
 
         public async Task AgregarPedidoAsync(Pedido pedido)
         {
-            _context.Pedidos.Add(pedido);
-            await _context.SaveChangesAsync();
+            await _uow.Pedidos.AddAsync(pedido);
+            await _uow.CompleteAsync();
         }
 
         public async Task ActualizarEstadoAsync(int id, string nuevoEstado)
         {
-            var pedido = await _context.Pedidos.FindAsync(id);
+            var pedido = await _uow.Pedidos.GetByIdAsync(id);
             if (pedido == null) return;
 
             pedido.Estado = nuevoEstado;
-            await _context.SaveChangesAsync();
+            await _uow.Pedidos.UpdateAsync(pedido);
+            await _uow.CompleteAsync();
         }
 
         public async Task<Pedido> CrearAsync(Pedido pedido)
         {
-            _context.Pedidos.Add(pedido);
-            await _context.SaveChangesAsync();
+            await _uow.Pedidos.AddAsync(pedido);
+            await _uow.CompleteAsync();
             return pedido;
         }
 
         public async Task ActualizarAsync(Pedido pedido)
         {
-            _context.Pedidos.Update(pedido);
-            await _context.SaveChangesAsync();
+            await _uow.Pedidos.UpdateAsync(pedido);
+            await _uow.CompleteAsync();
         }
 
         public async Task<Pedido?> ObtenerPorFolioAsync(string folio)
         {
-            return await _context.Pedidos
-                .Include(p => p.Cliente)
-                .FirstOrDefaultAsync(p => p.Folio == folio);
+            return await _uow.Pedidos.GetByFolioAsync(folio);
         }
 
         public async Task<Pedido?> ObtenerUltimoPedidoAsync(string telefonoCliente)
         {
-            return await _context.Pedidos
-                .Include(p => p.Cliente)
-                .Where(p => p.Cliente.Telefono == telefonoCliente)
-                .OrderByDescending(p => p.FechaPedido)
-                .FirstOrDefaultAsync();
+            return await _uow.Pedidos.GetLastOrderByPhoneAsync(telefonoCliente);
         }
         public string GenerarFolio()
         {
