@@ -37,6 +37,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = builder.Configuration.GetConnectionString("Redis");
+    options.InstanceName = "WhatsAppBot_";
 });
 
 builder.Services.AddDbContext<WhatsAppDbContext>(options =>

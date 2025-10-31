@@ -24,12 +24,12 @@ public class Change
 public class Value
 {
     public string Messaging_Product { get; set; }
-    public List<Meta> Metadata { get; set; } = new();
+    public Metadata Metadata { get; set; } = new();
     public List<Message> Messages { get; set; } = new();
     public List<Contact> Contacts { get; set; } = new();
 }
 
-public class Meta
+public class Metadata
 {
     public string Display_Phone_Number { get; set; }
     public string Phone_Number_Id { get; set; }

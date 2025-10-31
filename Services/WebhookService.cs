@@ -52,6 +52,7 @@ public class WebhookService : IWebhookService
                 return;
 
             // Verificar duplicados
+            _logger.LogInformation("Verificando si el mensaje es duplicado.");
             if (await EsMensajeDuplicado(message.Id))
             {
                 _logger.LogInformation($"Mensaje duplicado detectado, ID: {message.Id}");
@@ -379,9 +380,10 @@ public class WebhookService : IWebhookService
     }
     private async Task<bool> EsMensajeDuplicado(string messageId)
     {
+        _logger.LogInformation($"Verificamos que mensaje ID no sea nulo o vacio: {messageId}");
         if (string.IsNullOrEmpty(messageId))
             return false;
-
+        
         var cacheKey = $"msg_{messageId}";
         var existente = await _cache.GetStringAsync(cacheKey);
         
