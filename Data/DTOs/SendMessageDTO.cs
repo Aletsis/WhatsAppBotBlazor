@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace WhatsAppBot.Data.DTOs
 {
-    public class SendMessageDto
+    public class SendMessageDTO
     {
         [Required]
         [RegularExpression(@"^\d{10,15}$", ErrorMessage = "Número inválido. Usa solo dígitos en formato internacional (ej: 5215555555555).")]

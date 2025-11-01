@@ -23,7 +23,7 @@ namespace WhatsAppBot.Controllers
         /// Enviar mensaje simple de texto por WhatsApp.
         /// </summary>
         [HttpPost("send")]
-        public async Task<IActionResult> SendMessage([FromBody] SendMessageDto dto)
+        public async Task<IActionResult> SendMessage([FromBody] SendMessageDTO dto)
         {
             if (!ModelState.IsValid)
                 return ValidationProblem(ModelState);

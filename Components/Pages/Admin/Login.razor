@@ -1,0 +1,48 @@
+@page "/admin/login"
+@layout Layout.MainLayout
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<IdentityUser> SignInManager
+@inject NavigationManager NavigationManager
+
+<MudCard>
+    <MudCardHeader>
+        <MudText Typo="Typo.h5">Iniciar Sesión</MudText>
+    </MudCardHeader>
+    <MudCardContent>
+        <MudTextField @bind-Value="email" Label="Email" Variant="Variant.Outlined"/>
+        <MudTextField @bind-Value="password" Label="Contraseña" Variant="Variant.Outlined" 
+                     InputType="InputType.Password"/>
+    </MudCardContent>
+    <MudCardActions>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" 
+                  OnClick="HandleLogin">Ingresar</MudButton>
+    </MudCardActions>
+</MudCard>
+
+@code {
+    private string email = string.Empty;
+    private string password = string.Empty;
+
+    private async Task HandleLogin()
+    {
+        try
+        {
+            var result = await SignInManager.PasswordSignInAsync(email, password, false, false);
+            
+            if (result.Succeeded)
+            {
+                NavigationManager.NavigateTo("/admin");
+            }
+            else
+            {
+                // Mostrar error - aquí podrías usar ISnackbar o similar
+                // Por ejemplo: Snackbar.Add("Credenciales inválidas", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Manejar error
+            Console.WriteLine($"Error al iniciar sesión: {ex.Message}");
+        }
+    }
+}

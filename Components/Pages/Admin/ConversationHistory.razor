@@ -1,0 +1,267 @@
+@page "/admin/conversations"
+@layout Layout.AdminLayout
+@attribute [Authorize]
+@using WhatsAppBot.Data.DTOs
+@using WhatsAppBot.Models
+@inject IHistoryMessageService HistoryService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Historial de Conversaciones</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">
+    💬 Historial de Conversaciones
+</MudText>
+
+<MudGrid>
+    <!-- Filtros -->
+    <MudItem xs="12">
+        <MudCard>
+            <MudCardContent>
+                <MudGrid>
+                    <MudItem xs="12" md="4">
+                        <MudTextField @bind-Value="phoneNumber" 
+                                    Label="Número de teléfono"
+                                    Variant="Variant.Outlined" 
+                                    FullWidth />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudDateRangePicker @bind-DateRange="dateRange" 
+                                          Label="Rango de fechas"
+                                          Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="2">
+                        <MudButton Color="Color.Primary" 
+                                 Variant="Variant.Filled"
+                                 OnClick="SearchConversations"
+                                 FullWidth
+                                 StartIcon="@Icons.Material.Filled.Search">
+                            Buscar
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <!-- Lista de conversaciones -->
+    <MudItem xs="12" md="4">
+        <MudCard Style="height: 70vh;">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Conversaciones</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent Style="height: 100%; overflow-y: auto;">
+                @if (isLoading)
+                {
+                    <MudProgressCircular Indeterminate="true" />
+                }
+                else if (conversations.Any())
+                {
+                    <MudList T="string" Clickable="true">
+                        @foreach (var conversation in conversations)
+                        {
+                            <MudListItem OnClick="@(() => SelectConversation(conversation))"
+                                       Class="@GetConversationClass(conversation)">
+                                <div style="width: 100%;">
+                                    <MudText Typo="Typo.subtitle1">
+                                        📱 @conversation.PhoneNumber
+                                    </MudText>
+                                    <MudText Typo="Typo.body2" Class="text-secondary">
+                                        @conversation.MessageCount mensajes
+                                    </MudText>
+                                    <MudText Typo="Typo.caption" Class="text-secondary">
+                                        Último: @conversation.LastMessageDate.ToString("dd/MM/yyyy HH:mm")
+                                    </MudText>
+                                </div>
+                            </MudListItem>
+                            <MudDivider />
+                        }
+                    </MudList>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Class="text-center pa-4">
+                        No se encontraron conversaciones
+                    </MudText>
+                }
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <!-- Detalle de mensajes -->
+    <MudItem xs="12" md="8">
+        <MudCard Style="height: 70vh;">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    @if (selectedConversation != null)
+                    {
+                        <MudText Typo="Typo.h6">
+                            Conversación con @selectedConversation.PhoneNumber
+                        </MudText>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.h6">
+                            Selecciona una conversación
+                        </MudText>
+                    }
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    @if (selectedConversation != null)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Refresh" 
+                                     OnClick="RefreshConversation" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Send" 
+                                     OnClick="() => NavigateToDirectMessage(selectedConversation.PhoneNumber)" />
+                    }
+                </CardHeaderActions>
+            </MudCardHeader>
+            <MudCardContent Style="height: calc(100% - 80px); overflow-y: auto; padding: 0;">
+                @if (selectedConversation != null && selectedConversation.Messages.Any())
+                {
+                    <div class="pa-4" style="height: 100%; overflow-y: auto;">
+                        @foreach (var message in selectedConversation.Messages.OrderBy(m => m.Fecha))
+                        {
+                            <div class="@GetMessageClass(message) mb-3">
+                                <MudPaper Class="pa-3" Style="@GetMessageStyle(message)">
+                                    <MudText Typo="Typo.body1">
+                                        @message.MensajeTexto
+                                    </MudText>
+                                    <MudText Typo="Typo.caption" Class="mt-1">
+                                        @message.Fecha.ToString("dd/MM/yyyy HH:mm:ss")
+                                    </MudText>
+                                </MudPaper>
+                            </div>
+                        }
+                    </div>
+                }
+                else if (selectedConversation != null)
+                {
+                    <MudText Typo="Typo.body2" Class="text-center pa-4">
+                        No hay mensajes en esta conversación
+                    </MudText>
+                }
+                else
+                {
+                    <div class="d-flex flex-column align-center justify-center pa-8">
+                        <MudIcon Icon="@Icons.Material.Filled.Chat" 
+                               Size="Size.Large" 
+                               Disabled="true" />
+                        <MudText Typo="Typo.h6" Class="mt-4 text-center">
+                            Selecciona una conversación para ver los mensajes
+                        </MudText>
+                    </div>
+                }
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private string phoneNumber = "";
+    private DateRange? dateRange = new DateRange(DateTime.Today.AddDays(-30), DateTime.Today);
+    private List<WhatsAppBot.Data.DTOs.ConversationHistory> conversations = new();
+    private ConversationDetail? selectedConversation;
+    private bool isLoading = false;
+    private string selectedPhoneNumber = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await SearchConversations();
+    }
+
+    private async Task SearchConversations()
+    {
+        isLoading = true;
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(phoneNumber))
+            {
+                // Buscar conversaciones específicas por teléfono
+                conversations = await HistoryService.GetConversationsByPhoneAsync(
+                    phoneNumber, dateRange?.Start, dateRange?.End);
+            }
+            else
+            {
+                // Si no hay filtro de teléfono, necesitamos obtener todas las conversaciones
+                conversations = await GetAllConversations();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al buscar conversaciones: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task<List<WhatsAppBot.Data.DTOs.ConversationHistory>> GetAllConversations()
+    {
+        // Implementación temporal - necesitamos crear un método en el servicio para obtener todas las conversaciones
+        return new List<WhatsAppBot.Data.DTOs.ConversationHistory>();
+    }
+
+    private async Task SelectConversation(WhatsAppBot.Data.DTOs.ConversationHistory conversation)
+    {
+        selectedPhoneNumber = conversation.PhoneNumber;
+        
+        try
+        {
+            selectedConversation = await HistoryService.GetConversationDetailAsync(conversation.PhoneNumber);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar conversación: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task RefreshConversation()
+    {
+        if (!string.IsNullOrEmpty(selectedPhoneNumber))
+        {
+            var conversation = conversations.FirstOrDefault(c => c.PhoneNumber == selectedPhoneNumber);
+            if (conversation != null)
+            {
+                await SelectConversation(conversation);
+            }
+        }
+    }
+
+    private void NavigateToDirectMessage(string phoneNumber)
+    {
+        Navigation.NavigateTo($"/admin/direct-message?phone={phoneNumber}");
+    }
+
+    private string GetConversationClass(WhatsAppBot.Data.DTOs.ConversationHistory conversation)
+    {
+        return conversation.PhoneNumber == selectedPhoneNumber 
+            ? "mud-selected-item" 
+            : "";
+    }
+
+    private string GetMessageClass(MensajeWhatsApp message)
+    {
+        return message.DireccionConversacion == "entrada" 
+            ? "d-flex justify-start" 
+            : "d-flex justify-end";
+    }
+
+    private string GetMessageStyle(MensajeWhatsApp message)
+    {
+        var baseStyle = "max-width: 70%; word-wrap: break-word;";
+        
+        if (message.DireccionConversacion == "entrada")
+        {
+            return baseStyle + " background-color: var(--mud-palette-grey-lighten4);";
+        }
+        else
+        {
+            return baseStyle + " background-color: var(--mud-palette-primary-lighten4);";
+        }
+    }
+}

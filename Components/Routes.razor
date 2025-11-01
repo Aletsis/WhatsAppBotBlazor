@@ -3,4 +3,35 @@
         <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
+    <NotFound>
+        <PageTitle>Página no encontrada</PageTitle>
+        <LayoutView Layout="typeof(Layout.MainLayout)">
+            <MudContainer Class="d-flex flex-column align-center justify-center" Style="height: 70vh;">
+                <MudIcon Icon="@Icons.Material.Filled.Error" 
+                        Size="Size.Large" 
+                        Color="Color.Error" />
+                <MudText Typo="Typo.h4" Class="mt-4">
+                    404 - Página no encontrada
+                </MudText>
+                <MudText Typo="Typo.body1" Class="mt-2 text-center">
+                    La página que buscas no existe o ha sido movida.
+                </MudText>
+                <div class="mt-4">
+                    <MudButton Href="/" 
+                              Variant="Variant.Filled" 
+                              Color="Color.Primary" 
+                              StartIcon="@Icons.Material.Filled.Home"
+                              Class="mr-2">
+                        Ir al inicio
+                    </MudButton>
+                    <MudButton Href="/admin" 
+                              Variant="Variant.Outlined" 
+                              Color="Color.Primary" 
+                              StartIcon="@Icons.Material.Filled.AdminPanelSettings">
+                        Panel Admin
+                    </MudButton>
+                </div>
+            </MudContainer>
+        </LayoutView>
+    </NotFound>
 </Router>

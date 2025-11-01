@@ -1,0 +1,390 @@
+@page "/admin"
+@page "/admin/dashboard"
+@layout Layout.AdminLayout
+@attribute [Authorize]
+@using WhatsAppBot.Models
+@using WhatsAppBot.Data.DTOs
+@inject IDashboardService DashboardService
+@inject IPedidoService PedidoService
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@using Microsoft.AspNetCore.SignalR.Client
+
+<PageTitle>Dashboard - Panel Administrativo</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">
+    📊 Dashboard Administrativo
+</MudText>
+
+@if (isLoading)
+{
+    <MudContainer Class="d-flex justify-center align-center" Style="height: 50vh;">
+        <MudProgressCircular Indeterminate="true" Size="Size.Large" />
+        <MudText Class="ml-3">Cargando datos del dashboard...</MudText>
+    </MudContainer>
+}
+else
+{
+    <!-- Información de última actualización -->
+    <MudAlert Severity="Severity.Info" Class="mb-4">
+        <MudText Typo="Typo.caption">
+            Última actualización: @_metricas.FechaActualizacion.ToString("dd/MM/yyyy HH:mm:ss")
+        </MudText>
+    </MudAlert>
+
+    <!-- Tarjetas de Métricas -->
+    <MudGrid Class="mb-6">
+        <!-- Pedidos Hoy -->
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Class="position-relative" Style="height: 150px;">
+                <MudCardContent>
+                    <div class="d-flex justify-space-between align-center">
+                        <div>
+                            <MudText Typo="Typo.h4" Color="Color.Primary">
+                                @_metricas.PedidosHoy
+                            </MudText>
+                            <MudText Typo="Typo.body2">
+                                Pedidos Hoy
+                            </MudText>
+                        </div>
+                        <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" 
+                                 Color="Color.Primary" 
+                                 Size="Size.Large" />
+                    </div>
+                    <MudText Typo="Typo.caption" Class="mt-2">
+                        <MudIcon Icon="@GetTrendIcon(_metricas.PedidosTrend)" 
+                                 Size="Size.Small" 
+                                 Color="@GetTrendColor(_metricas.PedidosTrend)" />
+                        @Math.Round(_metricas.PedidosTrend, 1)% vs ayer
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Conversaciones Activas -->
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Style="height: 150px;">
+                <MudCardContent>
+                    <div class="d-flex justify-space-between align-center">
+                        <div>
+                            <MudText Typo="Typo.h4" Color="Color.Info">
+                                @_metricas.ConversacionesActivas
+                            </MudText>
+                            <MudText Typo="Typo.body2">
+                                Conversaciones Activas
+                            </MudText>
+                        </div>
+                        <MudIcon Icon="@Icons.Material.Filled.Chat" 
+                                 Color="Color.Info" 
+                                 Size="Size.Large" />
+                    </div>
+                    <MudText Typo="Typo.caption" Class="mt-2 text-secondary">
+                        Últimas 24 horas
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Nuevos Clientes -->
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Style="height: 150px;">
+                <MudCardContent>
+                    <div class="d-flex justify-space-between align-center">
+                        <div>
+                            <MudText Typo="Typo.h4" Color="Color.Success">
+                                @_metricas.ClientesNuevos
+                            </MudText>
+                            <MudText Typo="Typo.body2">
+                                Clientes Nuevos
+                            </MudText>
+                        </div>
+                        <MudIcon Icon="@Icons.Material.Filled.PersonAdd" 
+                                 Color="Color.Success" 
+                                 Size="Size.Large" />
+                    </div>
+                    <MudText Typo="Typo.caption" Class="mt-2 text-secondary">
+                        Esta semana
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Mensajes -->
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Style="height: 150px;">
+                <MudCardContent>
+                    <div class="d-flex justify-space-between align-center">
+                        <div>
+                            <MudText Typo="Typo.h4" Color="Color.Warning">
+                                @_metricas.MensajesEnviados
+                            </MudText>
+                            <MudText Typo="Typo.body2">
+                                Mensajes Enviados
+                            </MudText>
+                        </div>
+                        <MudIcon Icon="@Icons.Material.Filled.Send" 
+                                 Color="Color.Warning" 
+                                 Size="Size.Large" />
+                    </div>
+                    <MudText Typo="Typo.caption" Class="mt-2 text-secondary">
+                        Recibidos hoy: @_metricas.MensajesRecibidos
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    <!-- Gráficos y Tablas -->
+    <MudGrid>
+        <!-- Pedidos Recientes -->
+        <MudItem xs="12" lg="8">
+            <MudCard>
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">
+                            📦 Pedidos Recientes
+                        </MudText>
+                    </CardHeaderContent>
+                    <CardHeaderActions>
+                        <MudIconButton Icon="@Icons.Material.Filled.Refresh" 
+                                       Color="Color.Default" 
+                                       OnClick="RefreshData"
+                                       Title="Actualizar datos" />
+                        <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" 
+                                       Color="Color.Default" 
+                                       OnClick="@(() => Navigation.NavigateTo("/pedidos"))"
+                                       Title="Ver todos los pedidos" />
+                    </CardHeaderActions>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (_pedidosRecientes.Any())
+                    {
+                        <MudTable Items="_pedidosRecientes" 
+                                  Hover="true" 
+                                  Breakpoint="Breakpoint.Sm"
+                                  Dense="true">
+                            <HeaderContent>
+                                <MudTh>Folio</MudTh>
+                                <MudTh>Cliente</MudTh>
+                                <MudTh>Estado</MudTh>
+                                <MudTh>Fecha</MudTh>
+                                <MudTh>Acciones</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Folio">
+                                    <MudText Typo="Typo.body2" Class="font-weight-bold">
+                                        @context.Folio
+                                    </MudText>
+                                </MudTd>
+                                <MudTd DataLabel="Cliente">@context.ClienteNombre</MudTd>
+                                <MudTd DataLabel="Estado">
+                                    <MudChip T="string" Color="@GetEstadoColorEnum(context.Estado)" 
+                                            Size="Size.Small"
+                                            Variant="Variant.Filled">
+                                        @context.Estado
+                                    </MudChip>
+                                </MudTd>
+                                <MudTd DataLabel="Fecha">
+                                    @context.FechaPedido.ToString("dd/MM HH:mm")
+                                </MudTd>
+                                <MudTd DataLabel="Acciones">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" 
+                                                  Size="Size.Small" 
+                                                  OnClick="() => VerPedido(context.PedidoId)"
+                                                  Title="Ver detalles" />
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                    else
+                    {
+                        <div class="d-flex flex-column align-center pa-8">
+                            <MudIcon Icon="@Icons.Material.Filled.Inventory" 
+                                    Size="Size.Large" 
+                                    Disabled="true" />
+                            <MudText Typo="Typo.body2" Class="mt-2 text-center">
+                                No hay pedidos recientes
+                            </MudText>
+                        </div>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Estados de Pedidos -->
+        <MudItem xs="12" lg="4">
+            <MudCard>
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">
+                            📊 Estados de Pedidos
+                        </MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (_estadosPedidos.Any())
+                    {
+                        @foreach (var estado in _estadosPedidos)
+                        {
+                            <div class="d-flex justify-space-between align-center mb-2">
+                                <MudText Typo="Typo.body2">@estado.Estado</MudText>
+                                <MudChip T="string" Color="@GetEstadoColorEnum(estado.Estado)" 
+                                        Size="Size.Small"
+                                        Variant="Variant.Filled">
+                                    @estado.Cantidad
+                                </MudChip>
+                            </div>
+                            <MudProgressLinear Color="@GetEstadoColorEnum(estado.Estado)" 
+                                              Value="@estado.Porcentaje" 
+                                              Class="mb-3"
+                                              Size="Size.Small" />
+                        }
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Class="text-center">
+                            No hay datos de estados
+                        </MudText>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private DashboardMetricsDTO _metricas = new();
+    private List<PedidoRecenteDTO> _pedidosRecientes = new();
+    private List<EstadoPedidoMetricDTO> _estadosPedidos = new();
+    private HubConnection? _hubConnection;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadDashboardData();
+            await SetupSignalR();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar el dashboard: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadDashboardData()
+    {
+        try
+        {
+            // Cargar todas las métricas usando el nuevo servicio
+            var metricsTask = DashboardService.GetMetricsAsync();
+            var pedidosTask = DashboardService.GetPedidosRecientesAsync(10);
+            var estadosTask = DashboardService.GetPedidosEstadisticasAsync();
+
+            await Task.WhenAll(metricsTask, pedidosTask, estadosTask);
+
+            _metricas = await metricsTask;
+            _pedidosRecientes = await pedidosTask;
+            _estadosPedidos = await estadosTask;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading dashboard data: {ex.Message}");
+            throw;
+        }
+    }
+
+    private async Task SetupSignalR()
+    {
+        try
+        {
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl(Navigation.ToAbsoluteUri("/pedidoshub"))
+                .Build();
+
+            _hubConnection.On<Pedido>("PedidoRecibido", async (pedido) =>
+            {
+                // Recargar datos cuando llegue un nuevo pedido
+                await LoadDashboardData();
+                
+                Snackbar.Add($"Nuevo pedido recibido: {pedido.Folio}", Severity.Info);
+                await InvokeAsync(StateHasChanged);
+            });
+
+            _hubConnection.On<Pedido>("PedidoActualizado", async (pedido) =>
+            {
+                // Actualizar pedido en la lista
+                var existingPedido = _pedidosRecientes.FirstOrDefault(p => p.PedidoId == pedido.PedidoId);
+                if (existingPedido != null)
+                {
+                    existingPedido.Estado = pedido.Estado;
+                }
+                
+                // Recargar métricas
+                _metricas = await DashboardService.GetMetricsAsync();
+                _estadosPedidos = await DashboardService.GetPedidosEstadisticasAsync();
+                
+                await InvokeAsync(StateHasChanged);
+            });
+
+            await _hubConnection.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error setting up SignalR: {ex.Message}");
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        isLoading = true;
+        try
+        {
+            await LoadDashboardData();
+            Snackbar.Add("Datos actualizados", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al actualizar datos: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void VerPedido(int pedidoId)
+    {
+        // TODO: Navegar a detalle del pedido cuando esté implementado
+        Snackbar.Add($"Ver pedido {pedidoId} - Funcionalidad por implementar", Severity.Info);
+    }
+
+    private Color GetEstadoColorEnum(string estado) => estado switch
+    {
+        "En espera" => Color.Warning,
+        "En proceso" => Color.Info,
+        "Entregado" => Color.Success,
+        "Cancelado" => Color.Error,
+        "Pendiente" => Color.Default,
+        _ => Color.Secondary
+    };
+
+    private string GetTrendIcon(double trend) => trend >= 0 ? 
+        Icons.Material.Filled.TrendingUp : Icons.Material.Filled.TrendingDown;
+
+    private Color GetTrendColor(double trend) => trend >= 0 ? Color.Success : Color.Error;
+
+    public async void Dispose()
+    {
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
+        }
+    }
+}

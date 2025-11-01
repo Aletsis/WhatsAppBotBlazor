@@ -6,8 +6,47 @@
 @using static Microsoft.AspNetCore.Components.Web.RenderMode
 @using Microsoft.AspNetCore.Components.Web.Virtualization
 @using Microsoft.JSInterop
+
+@* Referencias del proyecto WhatsApp Bot *@
 @using WhatsAppBot
 @using WhatsAppBot.Components
+@using WhatsAppBot.Models
+@using WhatsAppBot.Data.DTOs
+@using WhatsAppBot.Services.Interfaces
+
+@* Referencias MudBlazor *@
 @using MudBlazor
 @using MudBlazor.Components
-@using WhatsAppBot.Services.Interfaces
+
+@* Referencias de autorización e identidad *@
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
+
+@* Referencias SignalR *@
+@using Microsoft.AspNetCore.SignalR.Client
+
+@* Referencias de navegación *@
+@using Microsoft.AspNetCore.Components
+
+@* Referencias adicionales para layouts *@
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Routing
+
+@* Referencias para fechas y rangos *@
+@using System.ComponentModel.DataAnnotations
+
+@* Referencias para Entity Framework si se necesitan en componentes *@
+@using Microsoft.EntityFrameworkCore
+
+@* Referencias para validación *@
+@using WhatsAppBot.Services.Validation
+@using WhatsAppBot.Services.Validation.Interfaces
+
+@* Referencias para repositorios (si se usan directamente en componentes) *@
+@using WhatsAppBot.Data.Repositories.Interfaces
+
+@* Referencias adicionales de sistema *@
+@using System.Globalization
+@using System.Text.Json
+@using System.Security.Claims

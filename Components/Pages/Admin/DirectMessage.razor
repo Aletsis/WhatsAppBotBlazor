@@ -1,0 +1,94 @@
+@page "/admin/direct-message"
+@layout Layout.AdminLayout
+@using WhatsAppBot.Models
+@attribute [Authorize]
+@inject IWhatsAppService WhatsAppService
+@inject IHistoryMessageService HistoryService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<MudGrid>
+    <MudItem xs="12">
+        <MudCard>
+            <MudCardContent>
+                <MudTextField @bind-Value="phoneNumber" Label="Número de teléfono"
+                            Variant="Variant.Outlined"/>
+                <MudTextField @bind-Value="message" Label="Mensaje"
+                            Lines="3" Variant="Variant.Outlined"/>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Color="Color.Primary" OnClick="SendMessage" Disabled="isLoading">
+                    @if (isLoading)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                        <MudText Class="ml-2">Enviando...</MudText>
+                    }
+                    else
+                    {
+                        <MudText>Enviar Mensaje</MudText>
+                    }
+                </MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private string phoneNumber = "";
+    private string message = "";
+    private bool isLoading = false;
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(phoneNumber) || string.IsNullOrWhiteSpace(message))
+        {
+            Snackbar.Add("Por favor ingresa el número y mensaje", Severity.Warning);
+            return;
+        }
+
+        isLoading = true;
+        try
+        {
+            var whatsAppMessage = new WhatsAppMessage
+            {
+                To = phoneNumber,
+                Body = message
+            };
+
+            var success = await WhatsAppService.SendMessageAsync(whatsAppMessage);
+            
+            if (success)
+            {
+                // Guardar en historial después del envío exitoso
+                var mensajeHistorial = new MensajeWhatsApp
+                {
+                    Telefono = phoneNumber,
+                    MensajeTexto = message,
+                    DireccionConversacion = "salida",
+                    Fecha = DateTime.Now,
+                    IsIncoming = false
+                };
+                
+                await HistoryService.GuardarMensajeEnHistorial(mensajeHistorial);
+                
+                Snackbar.Add("Mensaje enviado correctamente", Severity.Success);
+                
+                // Limpiar formulario
+                phoneNumber = "";
+                message = "";
+            }
+            else
+            {
+                Snackbar.Add("Error al enviar mensaje", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

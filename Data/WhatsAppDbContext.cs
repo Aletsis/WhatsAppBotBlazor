@@ -1,9 +1,11 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using WhatsAppBot.Models;
 
 namespace WhatsAppBot.Data
 {
-    public class WhatsAppDbContext : DbContext
+    public class WhatsAppDbContext : IdentityDbContext<IdentityUser>
     {
         public WhatsAppDbContext(DbContextOptions<WhatsAppDbContext> options)
             : base(options)

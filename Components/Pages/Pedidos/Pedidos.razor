@@ -105,7 +105,7 @@
 
     private async Task CambiarEstado(Pedido pedido, string nuevoEstado)
     {
-        if (pedido != null) return;
+        if (pedido == null) return;
         try
         {
             await PedidosService.ActualizarEstadoAsync(pedido.PedidoId, nuevoEstado);

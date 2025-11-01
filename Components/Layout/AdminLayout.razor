@@ -1,0 +1,252 @@
+@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<IdentityUser> SignInManager
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<MudThemeProvider Theme="@CustomMudTheme.Theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <!-- AppBar Principal -->
+    <MudAppBar Elevation="1" Color="Color.Primary">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" 
+                       Color="Color.Inherit" 
+                       Edge="Edge.Start" 
+                       OnClick="@ToggleDrawer" />
+        <MudText Typo="Typo.h6" Class="ml-3">
+            🛡️ Panel Administrativo - WhatsApp Bot
+        </MudText>
+        <MudSpacer />
+        
+        <!-- Notificaciones -->
+        <MudIconButton Icon="@Icons.Material.Filled.Notifications" 
+                       Color="Color.Inherit"
+                       OnClick="@ShowNotifications" />
+        
+        <!-- Usuario y Logout -->
+        <MudMenu Icon="@Icons.Material.Filled.AccountCircle" 
+                 Color="Color.Inherit" 
+                 AnchorOrigin="Origin.BottomRight">
+            <MudMenuItem Icon="@Icons.Material.Filled.Person">
+                <MudText>Perfil</MudText>
+            </MudMenuItem>
+            <MudMenuItem Icon="@Icons.Material.Filled.Settings">
+                <MudText>Configuración</MudText>
+            </MudMenuItem>
+            <MudDivider />
+            <MudMenuItem Icon="@Icons.Material.Filled.ExitToApp" 
+                        OnClick="Logout">
+                <MudText>Cerrar Sesión</MudText>
+            </MudMenuItem>
+        </MudMenu>
+    </MudAppBar>
+
+    <!-- Drawer/Sidebar -->
+    <MudDrawer @bind-Open="@_drawerOpen" 
+               Elevation="2" 
+               ClipMode="DrawerClipMode.Always"
+               Variant="DrawerVariant.Mini"
+               OpenMiniOnHover="true">
+        <MudDrawerHeader>
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" 
+                        Color="Color.Primary" 
+                        Size="Size.Large" />
+                <MudText Typo="Typo.h6" Class="ml-2">
+                    Admin
+                </MudText>
+            </div>
+        </MudDrawerHeader>
+        
+        <MudNavMenu>
+            <!-- Dashboard -->
+            <MudNavLink Href="/admin" 
+                       Icon="@Icons.Material.Filled.Dashboard"
+                       Match="NavLinkMatch.All">
+                Dashboard
+            </MudNavLink>
+            
+            <!-- Pedidos -->
+            <MudNavGroup Text="Pedidos" 
+                        Icon="@Icons.Material.Filled.ShoppingCart" 
+                        Expanded="@IsActiveSection("pedidos")">
+                <MudNavLink Href="/pedidos" 
+                           Icon="@Icons.Material.Filled.List">
+                    Ver Pedidos
+                </MudNavLink>
+                <MudNavLink Href="/admin/pedidos/reportes" 
+                           Icon="@Icons.Material.Filled.Assessment">
+                    Reportes de Pedidos
+                </MudNavLink>
+            </MudNavGroup>
+            
+            <!-- Clientes -->
+            <MudNavGroup Text="Clientes" 
+                        Icon="@Icons.Material.Filled.People"
+                        Expanded="@IsActiveSection("clientes")">
+                <MudNavLink Href="/admin/clientes" 
+                           Icon="@Icons.Material.Filled.List">
+                    Ver Clientes
+                </MudNavLink>
+                <MudNavLink Href="/admin/clientes/nuevo" 
+                           Icon="@Icons.Material.Filled.PersonAdd">
+                    Nuevo Cliente
+                </MudNavLink>
+            </MudNavGroup>
+            
+            <!-- Comunicación -->
+            <MudNavGroup Text="Comunicación" 
+                        Icon="@Icons.Material.Filled.Message"
+                        Expanded="@IsActiveSection("conversations,direct-message")">
+                <MudNavLink Href="/admin/conversations" 
+                           Icon="@Icons.Material.Filled.Chat">
+                    Conversaciones
+                </MudNavLink>
+                <MudNavLink Href="/admin/direct-message" 
+                           Icon="@Icons.Material.Filled.Send">
+                    Mensaje Directo
+                </MudNavLink>
+            </MudNavGroup>
+            
+            <!-- Reportes -->
+            <MudNavLink Href="/admin/reportes" 
+                       Icon="@Icons.Material.Filled.BarChart">
+                Reportes
+            </MudNavLink>
+            
+            <!-- Configuración -->
+            <MudNavLink Href="/admin/configuracion" 
+                       Icon="@Icons.Material.Filled.Settings">
+                Configuración
+            </MudNavLink>
+
+            <!-- Separador -->
+            <MudDivider Class="my-2" />
+            
+            <!-- Vista Pública -->
+            <MudNavLink Href="/" 
+                       Icon="@Icons.Material.Filled.Public"
+                       Target="_blank">
+                Ver Sitio Público
+            </MudNavLink>
+        </MudNavMenu>
+    </MudDrawer>
+
+    <!-- Contenido Principal -->
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.ExtraExtraLarge" Class="mt-4">
+            <!-- Breadcrumb -->
+            <MudBreadcrumbs Items="_breadcrumbItems" 
+                           Class="mb-4" 
+                           Separator=">" />
+            
+            <!-- Contenido de la página -->
+            <div class="pa-2">
+                @Body
+            </div>
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+    
+    private List<BreadcrumbItem> _breadcrumbItems = new()
+    {
+        new BreadcrumbItem("Admin", href: "/admin", icon: Icons.Material.Filled.Home)
+    };
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        UpdateBreadcrumb();
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        UpdateBreadcrumb();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleDrawer()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    private async Task Logout()
+    {
+        try
+        {
+            await SignInManager.SignOutAsync();
+            Navigation.NavigateTo("/admin/login", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error during logout: {ex.Message}");
+        }
+    }
+
+    private void ShowNotifications()
+    {
+        // TODO: Implementar panel de notificaciones
+        Console.WriteLine("Mostrar notificaciones");
+    }
+
+    private bool IsActiveSection(string sections)
+    {
+        var currentUrl = Navigation.Uri.ToLower();
+        var sectionList = sections.Split(',');
+        
+        return sectionList.Any(section => currentUrl.Contains(section.Trim()));
+    }
+
+    private void UpdateBreadcrumb()
+    {
+        var currentUrl = Navigation.Uri;
+        var relativePath = Navigation.ToBaseRelativePath(currentUrl).ToLower();
+        
+        _breadcrumbItems.Clear();
+        _breadcrumbItems.Add(new BreadcrumbItem("Admin", href: "/admin", icon: Icons.Material.Filled.Home));
+        
+        if (relativePath.Contains("pedidos"))
+        {
+            _breadcrumbItems.Add(new BreadcrumbItem("Pedidos", href: "/pedidos"));
+            if (relativePath.Contains("reportes"))
+                _breadcrumbItems.Add(new BreadcrumbItem("Reportes", href: null, disabled: true));
+        }
+        else if (relativePath.Contains("clientes"))
+        {
+            _breadcrumbItems.Add(new BreadcrumbItem("Clientes", href: "/admin/clientes"));
+            if (relativePath.Contains("nuevo"))
+                _breadcrumbItems.Add(new BreadcrumbItem("Nuevo Cliente", href: null, disabled: true));
+        }
+        else if (relativePath.Contains("conversations"))
+        {
+            _breadcrumbItems.Add(new BreadcrumbItem("Conversaciones", href: null, disabled: true));
+        }
+        else if (relativePath.Contains("direct-message"))
+        {
+            _breadcrumbItems.Add(new BreadcrumbItem("Mensaje Directo", href: null, disabled: true));
+        }
+        else if (relativePath.Contains("reportes"))
+        {
+            _breadcrumbItems.Add(new BreadcrumbItem("Reportes", href: null, disabled: true));
+        }
+        else if (relativePath.Contains("configuracion"))
+        {
+            _breadcrumbItems.Add(new BreadcrumbItem("Configuración", href: null, disabled: true));
+        }
+        else if (relativePath == "admin" || relativePath == "admin/dashboard")
+        {
+            _breadcrumbItems.Add(new BreadcrumbItem("Dashboard", href: null, disabled: true));
+        }
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+}

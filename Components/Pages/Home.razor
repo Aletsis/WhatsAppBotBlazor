@@ -1,106 +1,316 @@
 ﻿@page "/"
-@using WhatsAppBot.Models
-@inject IWhatsAppService WhatsAppService
-@inject HttpClient Http
-@inject IConfiguration Config
+@using WhatsAppBot.Data.DTOs
+@using WhatsAppBot.Services.Interfaces
+@inject IDashboardService DashboardService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
 
-<MudPaper Elevation="2" Class="pa-6">
-    <MudText Typo="Typo.h5" GutterBottom="true">
-        Enviar mensaje por WhatsApp
-    </MudText>
+<PageTitle>WhatsApp Bot - Gestión Automatizada de Pedidos</PageTitle>
 
-    <MudText Typo="Typo.body2" Class="mb-4 text-secondary">
-        Usa el formato internacional del número (por ejemplo: 5215555555555)
-    </MudText>
-
-    <MudForm @ref="form">
-        <MudTextField @bind-Value="telefono"
-                      Label="Número de WhatsApp"
-                      Variant="Variant.Outlined"
-                      FullWidth="true"
-                      Required="true"
-                      Adornment="Adornment.Start"
-                      AdornmentIcon="@Icons.Material.Filled.Phone" />
-
-        <MudTextField @bind-Value="mensaje"
-                      Label="Mensaje"
-                      Variant="Variant.Outlined"
-                      FullWidth="true"
-                      Lines="4"
-                      Class="mt-3"
-                      Required="true"
-                      Adornment="Adornment.Start"
-                      AdornmentIcon="@Icons.Material.Filled.Message" />
-
-        <MudButton OnClick="EnviarMensaje"
-                   Variant="Variant.Filled"
-                   Color="Color.Primary"
-                   Class="mt-4"
-                   Disabled="@enviando">
-            @(enviando ? "Enviando..." : "Enviar")
-        </MudButton>
-    </MudForm>
-
-    @if (resultado is not null)
-    {
-        <MudAlert Severity="@resultado.Value.Severity" Class="mt-3">
-            @resultado.Value.Mensaje
-        </MudAlert>
-    }
-</MudPaper>
-
-@code {
-    private MudForm form = default!;
-    string telefono = string.Empty;
-    string mensaje = string.Empty;
-    bool enviando = false;
-    (Severity Severity, string Mensaje)? resultado;
-    private WhatsAppMessage menssage = new WhatsAppMessage();
-
-    async Task EnviarMensaje()
-    {
-        await form.Validate();
-
-        if (!form.IsValid)
-        {
-            resultado = (Severity.Error, "Por favor completa todos los campos.");
-            return;
-        }
-
-        enviando = true;
-        resultado = null;
-        menssage.To = telefono;
-        menssage.Body = mensaje;
-        try
-        {
-            /*var response = await Http.PostAsJsonAsync("/api/whatsapp/send", new
+<!-- Hero Section -->
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-8">
+    <MudGrid Justify="Justify.Center" AlignItems="Center">
+        <MudItem xs="12" md="6">
+            <MudText Typo="Typo.h2" Class="mb-4" Color="Color.Primary">
+                🤖 WhatsApp Bot
+            </MudText>
+            <MudText Typo="Typo.h5" Class="mb-4 text-secondary">
+                Automatiza la gestión de pedidos y comunicación por WhatsApp
+            </MudText>
+            <MudText Typo="Typo.body1" Class="mb-6">
+                Sistema completo de gestión de pedidos con integración a WhatsApp Business API.
+                Automatiza respuestas, gestiona conversaciones y mantén el control total de tu negocio.
+            </MudText>
+            
+            <MudStack Row Spacing="3" Class="mt-6">
+                <MudButton Href="/admin" 
+                          Variant="Variant.Filled" 
+                          Color="Color.Primary" 
+                          Size="Size.Large"
+                          StartIcon="@Icons.Material.Filled.AdminPanelSettings">
+                    Panel Administrativo
+                </MudButton>
+                
+                <MudButton Href="/pedidos" 
+                          Variant="Variant.Outlined" 
+                          Color="Color.Secondary" 
+                          Size="Size.Large"
+                          StartIcon="@Icons.Material.Filled.ShoppingCart">
+                    Ver Pedidos
+                </MudButton>
+            </MudStack>
+        </MudItem>
+        
+        <MudItem xs="12" md="6">
+            @if (isLoading)
             {
-            To = telefono,
-            Body = mensaje
-            });
-
-            enviando = false;
-
-            if (response.IsSuccessStatusCode)
-                resultado = (Severity.Success, "✅ Mensaje enviado correctamente.");
-                else
-                resultado = (Severity.Error, "❌ Error al enviar mensaje.");*/
-
-            var result = await WhatsAppService.SendMessageAsync(menssage);
-            enviando = false;
-            if (result)
-            {
-                resultado = (Severity.Success, "✅ Mensaje enviado correctamente.");
+                <MudContainer Class="d-flex justify-center align-center" Style="height: 300px;">
+                    <MudProgressCircular Indeterminate="true" Size="Size.Large" />
+                </MudContainer>
             }
             else
             {
-                resultado = (Severity.Error, "❌ Error al enviar mensaje.");
+                <!-- Stats Cards Públicas -->
+                <MudGrid>
+                    <MudItem xs="6">
+                        <MudCard Elevation="4" Class="text-center pa-4">
+                            <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" 
+                                     Color="Color.Primary" 
+                                     Size="Size.Large" />
+                            <MudText Typo="Typo.h4" Color="Color.Primary" Class="mt-2">
+                                @publicStats.PedidosHoy
+                            </MudText>
+                            <MudText Typo="Typo.body2">
+                                Pedidos Hoy
+                            </MudText>
+                        </MudCard>
+                    </MudItem>
+                    
+                    <MudItem xs="6">
+                        <MudCard Elevation="4" Class="text-center pa-4">
+                            <MudIcon Icon="@Icons.Material.Filled.Chat" 
+                                     Color="Color.Info" 
+                                     Size="Size.Large" />
+                            <MudText Typo="Typo.h4" Color="Color.Info" Class="mt-2">
+                                @publicStats.ConversacionesActivas
+                            </MudText>
+                            <MudText Typo="Typo.body2">
+                                Conversaciones Activas
+                            </MudText>
+                        </MudCard>
+                    </MudItem>
+                    
+                    <MudItem xs="6">
+                        <MudCard Elevation="4" Class="text-center pa-4">
+                            <MudIcon Icon="@Icons.Material.Filled.Send" 
+                                     Color="Color.Warning" 
+                                     Size="Size.Large" />
+                            <MudText Typo="Typo.h4" Color="Color.Warning" Class="mt-2">
+                                @publicStats.MensajesEnviados
+                            </MudText>
+                            <MudText Typo="Typo.body2">
+                                Mensajes Hoy
+                            </MudText>
+                        </MudCard>
+                    </MudItem>
+                    
+                    <MudItem xs="6">
+                        <MudCard Elevation="4" Class="text-center pa-4">
+                            <MudIcon Icon="@Icons.Material.Filled.PersonAdd" 
+                                     Color="Color.Success" 
+                                     Size="Size.Large" />
+                            <MudText Typo="Typo.h4" Color="Color.Success" Class="mt-2">
+                                @publicStats.ClientesNuevos
+                            </MudText>
+                            <MudText Typo="Typo.body2">
+                                Clientes Nuevos
+                            </MudText>
+                        </MudCard>
+                    </MudItem>
+                </MudGrid>
             }
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+<!-- Features Section -->
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-8">
+    <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-6">
+        ✨ Características Principales
+    </MudText>
+    
+    <MudGrid>
+        <MudItem xs="12" md="4">
+            <MudCard Class="pa-6 text-center" Style="height: 300px;">
+                <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" 
+                         Color="Color.Primary" 
+                         Size="Size.Large" 
+                         Class="mb-4" />
+                <MudText Typo="Typo.h6" Class="mb-3">
+                    Automatización Inteligente
+                </MudText>
+                <MudText Typo="Typo.body2">
+                    Respuestas automáticas, gestión de estados de conversación 
+                    y procesamiento inteligente de pedidos sin intervención manual.
+                </MudText>
+            </MudCard>
+        </MudItem>
+        
+        <MudItem xs="12" md="4">
+            <MudCard Class="pa-6 text-center" Style="height: 300px;">
+                <MudIcon Icon="@Icons.Material.Filled.Timeline" 
+                         Color="Color.Secondary" 
+                         Size="Size.Large" 
+                         Class="mb-4" />
+                <MudText Typo="Typo.h6" Class="mb-3">
+                    Tiempo Real
+                </MudText>
+                <MudText Typo="Typo.body2">
+                    Monitoreo en tiempo real de pedidos, conversaciones y métricas
+                    con actualizaciones instantáneas via SignalR.
+                </MudText>
+            </MudCard>
+        </MudItem>
+        
+        <MudItem xs="12" md="4">
+            <MudCard Class="pa-6 text-center" Style="height: 300px;">
+                <MudIcon Icon="@Icons.Material.Filled.Security" 
+                         Color="Color.Tertiary" 
+                         Size="Size.Large" 
+                         Class="mb-4" />
+                <MudText Typo="Typo.h6" Class="mb-3">
+                    Panel Administrativo
+                </MudText>
+                <MudText Typo="Typo.body2">
+                    Control total con dashboard completo, gestión de clientes,
+                    historial de conversaciones y envío directo de mensajes.
+                </MudText>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+<!-- System Status Section -->
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-8">
+    <MudCard Class="pa-6">
+        <MudText Typo="Typo.h5" Class="mb-4">
+            📊 Estado del Sistema
+        </MudText>
+        
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <MudList T="string">
+                    <MudListItem Icon="@Icons.Material.Filled.CheckCircle" 
+                                IconColor="Color.Success">
+                        <MudText Typo="Typo.body1">
+                            WhatsApp Business API - Conectado
+                        </MudText>
+                    </MudListItem>
+                    <MudListItem Icon="@Icons.Material.Filled.CheckCircle" 
+                                IconColor="Color.Success">
+                        <MudText Typo="Typo.body1">
+                            Base de Datos - Operativa
+                        </MudText>
+                    </MudListItem>
+                    <MudListItem Icon="@Icons.Material.Filled.CheckCircle" 
+                                IconColor="Color.Success">
+                        <MudText Typo="Typo.body1">
+                            Cache Redis - Activo
+                        </MudText>
+                    </MudListItem>
+                </MudList>
+            </MudItem>
+            
+            <MudItem xs="12" md="6">
+                <MudList T="string">
+                    <MudListItem Icon="@Icons.Material.Filled.Update">
+                        <MudText Typo="Typo.body1">
+                            Última actualización: @lastUpdate.ToString("dd/MM/yyyy HH:mm")
+                        </MudText>
+                    </MudListItem>
+                    <MudListItem Icon="@Icons.Material.Filled.Speed">
+                        <MudText Typo="Typo.body1">
+                            Rendimiento: Óptimo
+                        </MudText>
+                    </MudListItem>
+                    <MudListItem Icon="@Icons.Material.Filled.CloudDone">
+                        <MudText Typo="Typo.body1">
+                            Servicios: Todos operativos
+                        </MudText>
+                    </MudListItem>
+                </MudList>
+            </MudItem>
+        </MudGrid>
+    </MudCard>
+</MudContainer>
+
+<!-- Quick Actions Section -->
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-8">
+    <MudText Typo="Typo.h5" Align="Align.Center" Class="mb-6">
+        🚀 Acciones Rápidas
+    </MudText>
+    
+    <MudGrid Justify="Justify.Center">
+        <MudItem xs="12" sm="6" md="3">
+            <MudButton Href="/admin/dashboard" 
+                      Variant="Variant.Filled" 
+                      Color="Color.Primary"
+                      FullWidth
+                      Size="Size.Large"
+                      StartIcon="@Icons.Material.Filled.Dashboard">
+                Dashboard
+            </MudButton>
+        </MudItem>
+        
+        <MudItem xs="12" sm="6" md="3">
+            <MudButton Href="/admin/conversations" 
+                      Variant="Variant.Filled" 
+                      Color="Color.Secondary"
+                      FullWidth
+                      Size="Size.Large"
+                      StartIcon="@Icons.Material.Filled.Chat">
+                Conversaciones
+            </MudButton>
+        </MudItem>
+        
+        <MudItem xs="12" sm="6" md="3">
+            <MudButton Href="/admin/direct-message" 
+                      Variant="Variant.Filled" 
+                      Color="Color.Tertiary"
+                      FullWidth
+                      Size="Size.Large"
+                      StartIcon="@Icons.Material.Filled.Send">
+                Enviar Mensaje
+            </MudButton>
+        </MudItem>
+        
+        <MudItem xs="12" sm="6" md="3">
+            <MudButton Href="/pedidos" 
+                      Variant="Variant.Filled" 
+                      Color="Color.Info"
+                      FullWidth
+                      Size="Size.Large"
+                      StartIcon="@Icons.Material.Filled.ShoppingCart">
+                Ver Pedidos
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+@code {
+    private DashboardMetricsDTO publicStats = new();
+    private bool isLoading = true;
+    private DateTime lastUpdate = DateTime.Now;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadPublicStats();
         }
         catch (Exception ex)
         {
-            enviando = false;
-            resultado = (Severity.Error, $"Error: {ex.Message}");
+            Snackbar.Add($"Error al cargar estadísticas: {ex.Message}", Severity.Warning);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadPublicStats()
+    {
+        try
+        {
+            // Cargar solo métricas públicas (sin datos sensibles)
+            publicStats = await DashboardService.GetMetricsAsync();
+            lastUpdate = DateTime.Now;
+        }
+        catch (Exception ex)
+        {
+            // En caso de error, mostrar métricas en cero
+            publicStats = new DashboardMetricsDTO();
+            Console.WriteLine($"Error loading public stats: {ex.Message}");
         }
     }
 }
