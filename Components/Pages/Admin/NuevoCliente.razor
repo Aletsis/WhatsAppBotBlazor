@@ -1,0 +1,279 @@
+@page "/admin/clientes/nuevo"
+@layout Layout.AdminLayout
+@attribute [Authorize]
+@inject IClienteService ClienteService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@using WhatsAppBot.Services.Validation
+@inject IValidationService<Cliente> ValidationService
+
+<PageTitle>Nuevo Cliente - WhatsApp Bot</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-4">
+    <MudGrid>
+        <MudItem xs="12">
+            <MudBreadcrumbs Items="_breadcrumbs" Class="mb-4" />
+            
+            <MudText Typo="Typo.h4" Class="mb-6">
+                <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Class="mr-2" />
+                Nuevo Cliente
+            </MudText>
+        </MudItem>
+    </MudGrid>
+
+    <MudCard>
+        <MudCardContent>
+            <EditForm Model="@nuevoCliente" OnValidSubmit="@CrearCliente">
+                <DataAnnotationsValidator />
+                
+                <MudGrid>
+                    <!-- Información Básica -->
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-3">
+                            <MudIcon Icon="@Icons.Material.Filled.Person" Class="mr-2" />
+                            Información Personal
+                        </MudText>
+                        <MudDivider Class="mb-4" />
+                    </MudItem>
+                    
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="nuevoCliente.Nombre"
+                                      Label="Nombre Completo"
+                                      Variant="Variant.Outlined"
+                                      Required="true"
+                                      RequiredError="El nombre es obligatorio"
+                                      HelperText="Ingrese el nombre completo del cliente"
+                                      FullWidth />
+                        <ValidationMessage For="@(() => nuevoCliente.Nombre)" />
+                    </MudItem>
+                    
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="nuevoCliente.Telefono"
+                                      Label="Número de Teléfono"
+                                      Variant="Variant.Outlined"
+                                      Required="true"
+                                      RequiredError="El teléfono es obligatorio"
+                                      HelperText="Formato: 5215555555555 (con código de país)"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Phone"
+                                      OnBlur="@ValidarTelefono"
+                                      FullWidth />
+                        <ValidationMessage For="@(() => nuevoCliente.Telefono)" />
+                        @if (!string.IsNullOrEmpty(telefonoError))
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-1">
+                                @telefonoError
+                            </MudText>
+                        }
+                    </MudItem>
+                    
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="nuevoCliente.Direccion"
+                                      Label="Dirección (Opcional)"
+                                      Variant="Variant.Outlined"
+                                      Lines="2"
+                                      HelperText="Dirección de entrega del cliente"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.LocationOn"
+                                      FullWidth />
+                    </MudItem>
+
+                    <!-- Estado -->
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-3 mt-4">
+                            <MudIcon Icon="@Icons.Material.Filled.Settings" Class="mr-2" />
+                            Configuración
+                        </MudText>
+                        <MudDivider Class="mb-4" />
+                    </MudItem>
+                    
+                    <MudItem xs="12" md="6">
+                        <MudSwitch T="bool" @bind-Checked="nuevoCliente.Activo"
+                                   Label="Cliente Activo"
+                                   Color="Color.Success"
+                                   UnCheckedColor="Color.Default" />
+                        <MudText Typo="Typo.caption" Class="text-muted">
+                            Los clientes inactivos no aparecerán en búsquedas por defecto
+                        </MudText>
+                    </MudItem>
+                </MudGrid>
+            </EditForm>
+        </MudCardContent>
+        
+        <MudCardActions>
+            <MudSpacer />
+            <MudButton Variant="Variant.Text" 
+                       Color="Color.Secondary"
+                       OnClick="@Cancelar"
+                       StartIcon="@Icons.Material.Filled.Cancel">
+                Cancelar
+            </MudButton>
+            <MudButton Variant="Variant.Filled" 
+                       Color="Color.Primary"
+                       OnClick="@CrearCliente"
+                       Disabled="@isSaving"
+                       StartIcon="@Icons.Material.Filled.Save">
+                @if (isSaving)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                    <span class="ml-2">Guardando...</span>
+                }
+                else
+                {
+                    <span>Crear Cliente</span>
+                }
+            </MudButton>
+        </MudCardActions>
+    </MudCard>
+
+    <!-- Vista previa del cliente -->
+    @if (mostrarVista)
+    {
+        <MudCard Class="mt-4">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">
+                        <MudIcon Icon="@Icons.Material.Filled.Preview" Class="mr-2" />
+                        Vista Previa
+                    </MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudText Typo="Typo.subtitle2">Nombre:</MudText>
+                        <MudText Typo="Typo.body1" Class="mb-2">
+                            @(!string.IsNullOrEmpty(nuevoCliente.Nombre) ? nuevoCliente.Nombre : "Sin especificar")
+                        </MudText>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudText Typo="Typo.subtitle2">Teléfono:</MudText>
+                        <MudText Typo="Typo.body1" Class="mb-2">
+                            @(!string.IsNullOrEmpty(nuevoCliente.Telefono) ? nuevoCliente.Telefono : "Sin especificar")
+                        </MudText>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudText Typo="Typo.subtitle2">Dirección:</MudText>
+                        <MudText Typo="Typo.body1" Class="mb-2">
+                            @(!string.IsNullOrEmpty(nuevoCliente.Direccion) ? nuevoCliente.Direccion : "Sin especificar")
+                        </MudText>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudText Typo="Typo.subtitle2">Estado:</MudText>
+                        <MudChip T="bool" Color="@(nuevoCliente.Activo ? Color.Success : Color.Default)" 
+                                 Size="Size.Small"
+                                 Icon="@(nuevoCliente.Activo ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Cancel)">
+                            @(nuevoCliente.Activo ? "Activo" : "Inactivo")
+                        </MudChip>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+    }
+</MudContainer>
+
+@code {
+    private ClienteCreateDTO nuevoCliente = new();
+    private bool isSaving = false;
+    private bool mostrarVista = true;
+    private string telefonoError = string.Empty;
+
+    private List<BreadcrumbItem> _breadcrumbs = new()
+    {
+        new BreadcrumbItem("Inicio", href: "/admin", icon: Icons.Material.Filled.Home),
+        new BreadcrumbItem("Clientes", href: "/admin/clientes", icon: Icons.Material.Filled.People),
+        new BreadcrumbItem("Nuevo Cliente", href: null, disabled: true, icon: Icons.Material.Filled.PersonAdd)
+    };
+
+    protected override void OnInitialized()
+    {
+        nuevoCliente.Activo = true; // Por defecto activo
+    }
+
+    private async Task ValidarTelefono()
+    {
+        telefonoError = string.Empty;
+        
+        if (!string.IsNullOrEmpty(nuevoCliente.Telefono))
+        {
+            try
+            {
+                var existe = await ClienteService.ExisteTelefonoAsync(nuevoCliente.Telefono);
+                if (existe)
+                {
+                    telefonoError = "Este número de teléfono ya está registrado";
+                }
+                
+                // Validar formato
+                if (!IsValidPhoneFormat(nuevoCliente.Telefono))
+                {
+                    telefonoError = "Formato de teléfono inválido. Debe contener solo dígitos (10-15 caracteres)";
+                }
+            }
+            catch (Exception ex)
+            {
+                telefonoError = "Error al validar el teléfono";
+            }
+        }
+    }
+
+    private bool IsValidPhoneFormat(string telefono)
+    {
+        if (string.IsNullOrWhiteSpace(telefono)) return false;
+        var digitsOnly = new string(telefono.Where(char.IsDigit).ToArray());
+        return digitsOnly.Length >= 10 && digitsOnly.Length <= 15;
+    }
+
+    private async Task CrearCliente()
+    {
+        // Validar antes de crear
+        if (string.IsNullOrWhiteSpace(nuevoCliente.Nombre))
+        {
+            Snackbar.Add("El nombre es obligatorio", Severity.Warning);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(nuevoCliente.Telefono))
+        {
+            Snackbar.Add("El teléfono es obligatorio", Severity.Warning);
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(telefonoError))
+        {
+            Snackbar.Add("Corrija los errores antes de continuar", Severity.Warning);
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            // Validar unicidad una vez más antes de crear
+            var existe = await ClienteService.ExisteTelefonoAsync(nuevoCliente.Telefono);
+            if (existe)
+            {
+                Snackbar.Add("Este número de teléfono ya está registrado", Severity.Error);
+                return;
+            }
+
+            // Crear el cliente
+            var cliente = await ClienteService.CrearDesdeDTO(nuevoCliente);
+            
+            Snackbar.Add($"Cliente '{cliente.Nombre}' creado exitosamente", Severity.Success);
+            Navigation.NavigateTo("/admin/clientes");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al crear cliente: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void Cancelar()
+    {
+        Navigation.NavigateTo("/admin/clientes");
+    }
+}

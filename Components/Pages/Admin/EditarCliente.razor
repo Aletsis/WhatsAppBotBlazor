@@ -1,0 +1,293 @@
+@page "/admin/clientes/editar/{ClienteId:int}"
+@layout Layout.AdminLayout
+@attribute [Authorize]
+@inject IClienteService ClienteService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Editar Cliente - WhatsApp Bot</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-4">
+    <MudGrid>
+        <MudItem xs="12">
+            <MudBreadcrumbs Items="_breadcrumbs" Class="mb-4" />
+            
+            <MudText Typo="Typo.h4" Class="mb-6">
+                <MudIcon Icon="@Icons.Material.Filled.Edit" Class="mr-2" />
+                Editar Cliente
+                @if (clienteOriginal != null)
+                {
+                    <MudText Typo="Typo.body1" Class="text-muted ml-2">
+                        - @clienteOriginal.Nombre
+                    </MudText>
+                }
+            </MudText>
+        </MudItem>
+    </MudGrid>
+
+    @if (isLoading)
+    {
+        <MudContainer Class="d-flex justify-center align-center" Style="height: 300px;">
+            <MudProgressCircular Indeterminate="true" Size="Size.Large" />
+        </MudContainer>
+    }
+    else if (clienteEditar == null)
+    {
+        <MudCard>
+            <MudCardContent>
+                <MudContainer Class="d-flex flex-column justify-center align-center" Style="height: 200px;">
+                    <MudIcon Icon="@Icons.Material.Filled.Error" Size="Size.Large" Class="mb-4 text-error" />
+                    <MudText Typo="Typo.h6" Class="text-error">Cliente no encontrado</MudText>
+                    <MudText Typo="Typo.body2" Class="text-muted mb-4">
+                        El cliente que intenta editar no existe o ha sido eliminado.
+                    </MudText>
+                    <MudButton Href="/admin/clientes" 
+                               Variant="Variant.Filled" 
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.ArrowBack">
+                        Volver a Clientes
+                    </MudButton>
+                </MudContainer>
+            </MudCardContent>
+        </MudCard>
+    }
+    else
+    {
+        <MudCard>
+            <MudCardContent>
+                <EditForm Model="@clienteEditar" OnValidSubmit="@ActualizarCliente">
+                    <DataAnnotationsValidator />
+                    
+                    <MudGrid>
+                        <!-- Información Básica -->
+                        <MudItem xs="12">
+                            <MudText Typo="Typo.h6" Class="mb-3">
+                                <MudIcon Icon="@Icons.Material.Filled.Person" Class="mr-2" />
+                                Información Personal
+                            </MudText>
+                            <MudDivider Class="mb-4" />
+                        </MudItem>
+                        
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="clienteEditar.Nombre"
+                                          Label="Nombre Completo"
+                                          Variant="Variant.Outlined"
+                                          Required="true"
+                                          RequiredError="El nombre es obligatorio"
+                                          HelperText="Ingrese el nombre completo del cliente"
+                                          FullWidth />
+                            <ValidationMessage For="@(() => clienteEditar.Nombre)" />
+                        </MudItem>
+                        
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="clienteEditar.Telefono"
+                                          Label="Número de Teléfono"
+                                          Variant="Variant.Outlined"
+                                          Required="true"
+                                          RequiredError="El teléfono es obligatorio"
+                                          HelperText="Formato: 5215555555555 (con código de país)"
+                                          Adornment="Adornment.Start"
+                                          AdornmentIcon="@Icons.Material.Filled.Phone"
+                                          OnBlur="@ValidarTelefono"
+                                          FullWidth />
+                            <ValidationMessage For="@(() => clienteEditar.Telefono)" />
+                            @if (!string.IsNullOrEmpty(telefonoError))
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-1">
+                                    @telefonoError
+                                </MudText>
+                            }
+                        </MudItem>
+                        
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="clienteEditar.Direccion"
+                                          Label="Dirección (Opcional)"
+                                          Variant="Variant.Outlined"
+                                          Lines="2"
+                                          HelperText="Dirección de entrega del cliente"
+                                          Adornment="Adornment.Start"
+                                          AdornmentIcon="@Icons.Material.Filled.LocationOn"
+                                          FullWidth />
+                        </MudItem>
+
+                        <!-- Estado -->
+                        <MudItem xs="12">
+                            <MudText Typo="Typo.h6" Class="mb-3 mt-4">
+                                <MudIcon Icon="@Icons.Material.Filled.Settings" Class="mr-2" />
+                                Configuración
+                            </MudText>
+                            <MudDivider Class="mb-4" />
+                        </MudItem>
+                        
+                        <MudItem xs="12" md="6">
+                            <MudSwitch T="bool" @bind-Checked="clienteEditar.Activo"
+                                       Label="Cliente Activo"
+                                       Color="Color.Success"
+                                       UnCheckedColor="Color.Default" />
+                            <MudText Typo="Typo.caption" Class="text-muted">
+                                Los clientes inactivos no aparecerán en búsquedas por defecto
+                            </MudText>
+                        </MudItem>
+                    </MudGrid>
+                </EditForm>
+            </MudCardContent>
+            
+            <MudCardActions>
+                <MudSpacer />
+                <MudButton Variant="Variant.Text" 
+                           Color="Color.Secondary"
+                           OnClick="@Cancelar"
+                           StartIcon="@Icons.Material.Filled.Cancel">
+                    Cancelar
+                </MudButton>
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Primary"
+                           OnClick="@ActualizarCliente"
+                           Disabled="@isSaving"
+                           StartIcon="@Icons.Material.Filled.Save">
+                    @if (isSaving)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                        <span class="ml-2">Actualizando...</span>
+                    }
+                    else
+                    {
+                        <span>Actualizar Cliente</span>
+                    }
+                </MudButton>
+            </MudCardActions>
+        </MudCard>
+    }
+</MudContainer>
+
+@code {
+    [Parameter] public int ClienteId { get; set; }
+    
+    private ClienteUpdateDTO? clienteEditar;
+    private ClienteUpdateDTO? clienteOriginal;
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private string telefonoError = string.Empty;
+
+    private List<BreadcrumbItem> _breadcrumbs = new()
+    {
+        new BreadcrumbItem("Inicio", href: "/admin", icon: Icons.Material.Filled.Home),
+        new BreadcrumbItem("Clientes", href: "/admin/clientes", icon: Icons.Material.Filled.People),
+        new BreadcrumbItem("Editar Cliente", href: null, disabled: true, icon: Icons.Material.Filled.Edit)
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarCliente();
+    }
+
+    private async Task CargarCliente()
+    {
+        isLoading = true;
+        try
+        {
+            clienteEditar = await ClienteService.ObtenerParaEdicionAsync(ClienteId);
+            if (clienteEditar != null)
+            {
+                // Crear copia para comparar cambios
+                clienteOriginal = new ClienteUpdateDTO
+                {
+                    ClienteId = clienteEditar.ClienteId,
+                    Nombre = clienteEditar.Nombre,
+                    Telefono = clienteEditar.Telefono,
+                    Direccion = clienteEditar.Direccion,
+                    Activo = clienteEditar.Activo
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar cliente: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ValidarTelefono()
+    {
+        telefonoError = string.Empty;
+        
+        if (!string.IsNullOrEmpty(clienteEditar?.Telefono) && clienteEditar.Telefono != clienteOriginal?.Telefono)
+        {
+            try
+            {
+                var existe = await ClienteService.ExisteTelefonoAsync(clienteEditar.Telefono, ClienteId);
+                if (existe)
+                {
+                    telefonoError = "Este número de teléfono ya está registrado por otro cliente";
+                }
+                
+                // Validar formato
+                if (!IsValidPhoneFormat(clienteEditar.Telefono))
+                {
+                    telefonoError = "Formato de teléfono inválido. Debe contener solo dígitos (10-15 caracteres)";
+                }
+            }
+            catch (Exception ex)
+            {
+                telefonoError = "Error al validar el teléfono";
+            }
+        }
+    }
+
+    private bool IsValidPhoneFormat(string telefono)
+    {
+        if (string.IsNullOrWhiteSpace(telefono)) return false;
+        var digitsOnly = new string(telefono.Where(char.IsDigit).ToArray());
+        return digitsOnly.Length >= 10 && digitsOnly.Length <= 15;
+    }
+
+    private async Task ActualizarCliente()
+    {
+        if (clienteEditar == null) return;
+
+        // Validar antes de actualizar
+        if (string.IsNullOrWhiteSpace(clienteEditar.Nombre))
+        {
+            Snackbar.Add("El nombre es obligatorio", Severity.Warning);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(clienteEditar.Telefono))
+        {
+            Snackbar.Add("El teléfono es obligatorio", Severity.Warning);
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(telefonoError))
+        {
+            Snackbar.Add("Corrija los errores antes de continuar", Severity.Warning);
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            await ClienteService.ActualizarDesdeDTO(clienteEditar);
+            
+            Snackbar.Add($"Cliente '{clienteEditar.Nombre}' actualizado exitosamente", Severity.Success);
+            Navigation.NavigateTo("/admin/clientes");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al actualizar cliente: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void Cancelar()
+    {
+        Navigation.NavigateTo("/admin/clientes");
+    }
+}

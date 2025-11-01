@@ -1,0 +1,387 @@
+@page "/admin/clientes"
+@layout Layout.AdminLayout
+@attribute [Authorize]
+@inject IClienteService ClienteService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Gestión de Clientes - WhatsApp Bot</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraExtraLarge" Class="py-4">
+    <!-- Header con estadísticas -->
+    <MudGrid Class="mb-6">
+        <MudItem xs="12">
+            <MudText Typo="Typo.h4" Class="mb-4">
+                <MudIcon Icon="@Icons.Material.Filled.People" Class="mr-2" />
+                Gestión de Clientes
+            </MudText>
+        </MudItem>
+        
+        <!-- Estadísticas -->
+        @if (estadisticas != null)
+        {
+            <MudItem xs="12" sm="6" md="3">
+                <MudCard Style="height: 120px;">
+                    <MudCardContent>
+                        <div class="d-flex justify-space-between align-center">
+                            <div>
+                                <MudText Typo="Typo.h4" Color="Color.Primary">
+                                    @estadisticas.TotalClientes
+                                </MudText>
+                                <MudText Typo="Typo.body2">Total Clientes</MudText>
+                            </div>
+                            <MudIcon Icon="@Icons.Material.Filled.People" Color="Color.Primary" Size="Size.Large" />
+                        </div>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+            
+            <MudItem xs="12" sm="6" md="3">
+                <MudCard Style="height: 120px;">
+                    <MudCardContent>
+                        <div class="d-flex justify-space-between align-center">
+                            <div>
+                                <MudText Typo="Typo.h4" Color="Color.Success">
+                                    @estadisticas.ClientesActivos
+                                </MudText>
+                                <MudText Typo="Typo.body2">Activos</MudText>
+                            </div>
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Large" />
+                        </div>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+            
+            <MudItem xs="12" sm="6" md="3">
+                <MudCard Style="height: 120px;">
+                <MudCardContent>
+                    <div class="d-flex justify-space-between align-center">
+                        <div>
+                            <MudText Typo="Typo.h4" Color="Color.Info">
+                                @estadisticas.ClientesNuevosEsteMes
+                            </MudText>
+                            <MudText Typo="Typo.body2">Nuevos Este Mes</MudText>
+                        </div>
+                        <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Color="Color.Info" Size="Size.Large" />
+                    </div>
+                </MudCardContent>
+            </MudCard>
+            </MudItem>
+            
+            <MudItem xs="12" sm="6" md="3">
+                <MudCard Style="height: 120px;">
+                    <MudCardContent>
+                        <div class="d-flex justify-space-between align-center">
+                            <div>
+                                <MudText Typo="Typo.h4" Color="Color.Warning">
+                                    @estadisticas.ClientesConPedidos
+                                </MudText>
+                                <MudText Typo="Typo.body2">Con Pedidos</MudText>
+                            </div>
+                            <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Warning" Size="Size.Large" />
+                        </div>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+
+    <!-- Filtros y búsqueda -->
+    <MudCard Class="mb-4">
+        <MudCardContent>
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="filtros.SearchTerm" 
+                                  Label="Buscar por nombre o teléfono"
+                                  Variant="Variant.Outlined"
+                                  Adornment="Adornment.End"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  OnAdornmentClick="@BuscarClientes"
+                                  OnKeyPress="@OnSearchKeyPress"
+                                  FullWidth />
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <MudSelect @bind-Value="filtros.SoloActivos" 
+                               Label="Estado" 
+                               Variant="Variant.Outlined"
+                               FullWidth>
+                        <MudSelectItem Value="@((bool?)null)">Todos</MudSelectItem>
+                        <MudSelectItem Value="true">Solo Activos</MudSelectItem>
+                        <MudSelectItem Value="false">Solo Inactivos</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="3" Class="d-flex align-center">
+                    <MudButtonGroup Variant="Variant.Outlined" Size="Size.Medium">
+                        <MudButton StartIcon="@Icons.Material.Filled.Search" 
+                                   Color="Color.Primary"
+                                   OnClick="@BuscarClientes">
+                            Buscar
+                        </MudButton>
+                        <MudButton StartIcon="@Icons.Material.Filled.Clear" 
+                                   Color="Color.Secondary"
+                                   OnClick="@LimpiarFiltros">
+                            Limpiar
+                        </MudButton>
+                    </MudButtonGroup>
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+
+    <!-- Botón Nuevo Cliente -->
+    <MudGrid Class="mb-4">
+        <MudItem xs="12" Class="d-flex justify-end">
+            <MudButton Href="/admin/clientes/nuevo"
+                       Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.PersonAdd"
+                       Size="Size.Large">
+                Nuevo Cliente
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+
+    <!-- Tabla de clientes -->
+    <MudCard>
+        <MudCardContent>
+            @if (isLoading)
+            {
+                <MudContainer Class="d-flex justify-center align-center" Style="height: 300px;">
+                    <MudProgressCircular Indeterminate="true" Size="Size.Large" />
+                </MudContainer>
+            }
+            else if (clientesPaginados?.Clientes?.Any() == true)
+            {
+                <MudTable Items="@clientesPaginados.Clientes" 
+                          Hover="true" 
+                          Dense="true" 
+                          Bordered="true"
+                          Striped="true">
+                    <HeaderContent>
+                        <MudTh>Nombre</MudTh>
+                        <MudTh>Teléfono</MudTh>
+                        <MudTh>Dirección</MudTh>
+                        <MudTh>Fecha Registro</MudTh>
+                        <MudTh>Estado</MudTh>
+                        <MudTh>Total Pedidos</MudTh>
+                        <MudTh>Último Pedido</MudTh>
+                        <MudTh>Acciones</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Nombre">
+                            <div class="d-flex align-center">
+                                <MudIcon Icon="@Icons.Material.Filled.Person" Class="mr-2" Size="Size.Small" />
+                                <MudText Typo="Typo.body2">@context.Nombre</MudText>
+                            </div>
+                        </MudTd>
+                        <MudTd DataLabel="Teléfono">
+                            <MudChip T="string" Icon="@Icons.Material.Filled.Phone" 
+                                     Size="Size.Small" 
+                                     Color="Color.Info" 
+                                     Variant="Variant.Text">
+                                @context.Telefono
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Dirección">
+                            @if (!string.IsNullOrEmpty(context.Direccion))
+                            {
+                                <MudText Typo="Typo.body2">@context.Direccion</MudText>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.body2" Class="text-muted">Sin dirección</MudText>
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="Fecha Registro">
+                            <MudText Typo="Typo.body2">@context.FechaRegistroDisplay</MudText>
+                        </MudTd>
+                        <MudTd DataLabel="Estado">
+                            <MudChip T="string" Color="@(context.Activo ? Color.Success : Color.Error)" 
+                                     Size="Size.Small"
+                                     Icon="@(context.Activo ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Cancel)">
+                                @context.EstadoDisplay
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Total Pedidos">
+                            <MudBadge Content="@context.TotalPedidos" 
+                                      Color="Color.Primary" 
+                                      Origin="Origin.CenterRight">
+                                <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" />
+                            </MudBadge>
+                        </MudTd>
+                        <MudTd DataLabel="Último Pedido">
+                            <MudText Typo="Typo.body2">@context.UltimoPedidoDisplay</MudText>
+                        </MudTd>
+                        <MudTd DataLabel="Acciones">
+                            <MudButtonGroup Size="Size.Small" Variant="Variant.Text">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                               Color="Color.Primary"
+                                               Size="Size.Small"
+                                               OnClick="@(() => EditarCliente(context.ClienteId))" />
+                                <MudIconButton Icon="@(context.Activo ? Icons.Material.Filled.Block : Icons.Material.Filled.CheckCircle)"
+                                               Color="@(context.Activo ? Color.Warning : Color.Success)"
+                                               Size="Size.Small"
+                                               OnClick="@(() => CambiarEstadoCliente(context.ClienteId, !context.Activo))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                               Color="Color.Error"
+                                               Size="Size.Small"
+                                               OnClick="@(() => EliminarCliente(context.ClienteId, context.Nombre))" />
+                            </MudButtonGroup>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                <!-- Paginación -->
+                <MudDivider Class="my-4" />
+                <div class="d-flex justify-space-between align-center">
+                    <MudText Typo="Typo.body2" Class="text-muted">
+                        Mostrando @((filtros.PageNumber - 1) * filtros.PageSize + 1) - 
+                        @Math.Min(filtros.PageNumber * filtros.PageSize, clientesPaginados.TotalCount) 
+                        de @clientesPaginados.TotalCount clientes
+                    </MudText>
+                    
+                    <!-- ✅ CORRECCIÓN 1: Eliminar SelectedChanged duplicado -->
+                    <MudPagination Count="@clientesPaginados.TotalPages" 
+                                   @bind-Selected="@filtros.PageNumber"
+                                   @bind-Selected:after="@OnPageChanged"
+                                   ShowFirstButton="true"
+                                   ShowLastButton="true" />
+                    
+                    <MudSelect @bind-Value="filtros.PageSize" 
+                               Label="Por página" 
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense"
+                               Style="width: 100px;">
+                        <MudSelectItem Value="5">5</MudSelectItem>
+                        <MudSelectItem Value="10">10</MudSelectItem>
+                        <MudSelectItem Value="25">25</MudSelectItem>
+                        <MudSelectItem Value="50">50</MudSelectItem>
+                    </MudSelect>
+                </div>
+            }
+            else
+            {
+                <MudContainer Class="d-flex flex-column justify-center align-center" Style="height: 300px;">
+                    <MudIcon Icon="@Icons.Material.Filled.People" Size="Size.Large" Class="mb-4 text-muted" />
+                    <MudText Typo="Typo.h6" Class="text-muted">No se encontraron clientes</MudText>
+                    <MudText Typo="Typo.body2" Class="text-muted mb-4">
+                        @if (string.IsNullOrEmpty(filtros.SearchTerm))
+                        {
+                            <text>Aún no hay clientes registrados en el sistema.</text>
+                        }
+                        else
+                        {
+                            <text>No hay clientes que coincidan con los criterios de búsqueda.</text>
+                        }
+                    </MudText>
+                    <MudButton Href="/admin/clientes/nuevo"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.PersonAdd">
+                        Crear Primer Cliente
+                    </MudButton>
+                </MudContainer>
+            }
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private ClientePagedResultDTO? clientesPaginados;
+    private ClienteEstadisticasDTO? estadisticas;
+    private ClienteSearchFilterDTO filtros = new() { PageSize = 10 };
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarDatos();
+    }
+
+    private async Task CargarDatos()
+    {
+        isLoading = true;
+        try
+        {
+            // ✅ CORRECCIÓN 2 y 3: Separar las llamadas para evitar problemas de tipos
+            var clientesTask = ClienteService.ObtenerClientesPaginadosAsync(filtros);
+            var estadisticasTask = ClienteService.ObtenerEstadisticasAsync();
+
+            clientesPaginados = await clientesTask;
+            estadisticas = await estadisticasTask;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar datos: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task BuscarClientes()
+    {
+        filtros.PageNumber = 1;
+        await CargarDatos();
+    }
+
+    private async Task LimpiarFiltros()
+    {
+        filtros = new ClienteSearchFilterDTO { PageSize = filtros.PageSize };
+        await CargarDatos();
+    }
+
+    // ✅ CORRECCIÓN 4: Simplificar método de cambio de página
+    private async Task OnPageChanged()
+    {
+        await CargarDatos();
+    }
+
+    private async Task OnSearchKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await BuscarClientes();
+        }
+    }
+
+    private void EditarCliente(int clienteId)
+    {
+        Navigation.NavigateTo($"/admin/clientes/editar/{clienteId}");
+    }
+
+    private async Task CambiarEstadoCliente(int clienteId, bool nuevoEstado)
+    {
+        try
+        {
+            await ClienteService.ActivarDesactivarAsync(clienteId, nuevoEstado);
+            Snackbar.Add($"Cliente {(nuevoEstado ? "activado" : "desactivado")} correctamente", Severity.Success);
+            await CargarDatos();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cambiar estado: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task EliminarCliente(int clienteId, string nombreCliente)
+    {
+        bool? result = await JSRuntime.InvokeAsync<bool?>("confirm", 
+            $"¿Está seguro de que desea eliminar al cliente '{nombreCliente}'?\n\nEsta acción no se puede deshacer.");
+        
+        if (result == true)
+        {
+            try
+            {
+                await ClienteService.EliminarAsync(clienteId);
+                Snackbar.Add("Cliente eliminado correctamente", Severity.Success);
+                await CargarDatos();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error al eliminar cliente: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}
