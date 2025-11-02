@@ -9,6 +9,9 @@ namespace WhatsAppBot.Data.DTOs
         public int MensajesEnviados { get; set; }
         public int MensajesRecibidos { get; set; }
         public DateTime FechaActualizacion { get; set; } = DateTime.Now;
+        public int TotalPedidos { get; set; }
+        public int PedidosAyer { get; set; }
+        public decimal TasaRespuesta { get; set; }
     }
 
     public class EstadoPedidoMetricDTO

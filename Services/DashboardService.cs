@@ -18,67 +18,89 @@ namespace WhatsAppBot.Services
 
         public async Task<DashboardMetricsDTO> GetMetricsAsync()
         {
+            // ✅ FAIL-SAFE: Retornar datos por defecto si algo falla
+            var defaultMetrics = new DashboardMetricsDTO
+            {
+                PedidosHoy = 0,
+                PedidosTrend = 0,
+                ConversacionesActivas = 0,
+                ClientesNuevos = 0,
+                MensajesEnviados = 0,
+                MensajesRecibidos = 0,
+                FechaActualizacion = DateTime.Now
+            };
+
             try
             {
+                _logger.LogInformation("Iniciando carga de métricas del dashboard");
+
                 var today = DateTime.Today;
                 var yesterday = today.AddDays(-1);
                 var weekAgo = today.AddDays(-7);
 
-                // Obtener métricas en paralelo para mejor rendimiento
-                var metricsTask = GetPedidosMetricsAsync(today, yesterday);
-                var conversacionesTask = GetActiveConversationsCountAsync();
-                var clientesTask = GetNewClientsCountAsync(weekAgo);
-                var mensajesTask = GetMessagesMetricsAsync(today);
+                // ✅ Ejecutar cada métrica por separado con try-catch individual
+                var pedidosHoy = await GetPedidosCountSafeAsync(today);
+                var pedidosAyer = await GetPedidosCountSafeAsync(yesterday);
+                var conversacionesActivas = await GetConversacionesActivasSafeAsync();
+                var clientesNuevos = await GetClientesNuevosSafeAsync(weekAgo);
+                var (enviados, recibidos) = await GetMensajesMetricsSafeAsync(today);
 
-                await Task.WhenAll(metricsTask, conversacionesTask, clientesTask, mensajesTask);
+                // Calcular trend de forma segura
+                var trend = pedidosAyer > 0 ? 
+                    Math.Round(((double)(pedidosHoy - pedidosAyer) / pedidosAyer) * 100, 1) : 
+                    (pedidosHoy > 0 ? 100.0 : 0.0);
 
-                var pedidosMetrics = await metricsTask;
-                var conversacionesActivas = await conversacionesTask;
-                var clientesNuevos = await clientesTask;
-                var mensajesMetrics = await mensajesTask;
-
-                return new DashboardMetricsDTO
+                var metrics = new DashboardMetricsDTO
                 {
-                    PedidosHoy = pedidosMetrics.PedidosHoy,
-                    PedidosTrend = pedidosMetrics.Trend,
+                    PedidosHoy = pedidosHoy,
+                    PedidosTrend = trend,
                     ConversacionesActivas = conversacionesActivas,
                     ClientesNuevos = clientesNuevos,
-                    MensajesEnviados = mensajesMetrics.Enviados,
-                    MensajesRecibidos = mensajesMetrics.Recibidos,
+                    MensajesEnviados = enviados,
+                    MensajesRecibidos = recibidos,
                     FechaActualizacion = DateTime.Now
                 };
+
+                _logger.LogInformation("Métricas del dashboard cargadas exitosamente: {@Metrics}", metrics);
+                return metrics;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener métricas del dashboard");
-                return new DashboardMetricsDTO(); // Devolver métricas en cero en caso de error
+                _logger.LogError(ex, "Error crítico al obtener métricas del dashboard");
+                return defaultMetrics;
             }
         }
 
-        public async Task<int> GetActiveConversationsCountAsync()
+        // ✅ Métodos auxiliares fail-safe
+        private async Task<int> GetPedidosCountSafeAsync(DateTime date)
         {
             try
             {
-                var last24Hours = DateTime.Now.AddHours(-24);
-                
-                // Contar conversaciones con actividad en las últimas 24 horas
-                var mensajesRecientes = await _uow.Mensajes.GetAllAsync();
-                
-                var conversacionesActivas = mensajesRecientes
-                    .Where(m => m.Fecha >= last24Hours)
-                    .GroupBy(m => m.Telefono)
-                    .Count();
-
-                return conversacionesActivas;
+                var pedidos = await _uow.Pedidos.GetAllAsync();
+                return pedidos.Count(p => p.FechaPedido.Date == date);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener conversaciones activas");
+                _logger.LogWarning(ex, "Error al obtener pedidos para fecha {Date}", date);
                 return 0;
             }
         }
 
-        public async Task<int> GetNewClientsCountAsync(DateTime since)
+        private async Task<int> GetConversacionesActivasSafeAsync()
+        {
+            try
+            {
+                var estados = await _uow.EstadosConversacion.GetAllAsync();
+                return estados.Count();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error al obtener conversaciones activas");
+                return 0;
+            }
+        }
+
+        private async Task<int> GetClientesNuevosSafeAsync(DateTime since)
         {
             try
             {
@@ -87,9 +109,41 @@ namespace WhatsAppBot.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener clientes nuevos");
+                _logger.LogWarning(ex, "Error al obtener clientes nuevos desde {Since}", since);
                 return 0;
             }
+        }
+
+        private async Task<(int Enviados, int Recibidos)> GetMensajesMetricsSafeAsync(DateTime today)
+        {
+            try
+            {
+                var tomorrow = today.AddDays(1);
+                var mensajes = await _uow.Mensajes.GetAllAsync();
+                
+                var mensajesHoy = mensajes.Where(m => m.Fecha >= today && m.Fecha < tomorrow);
+                
+                var enviados = mensajesHoy.Count(m => m.DireccionConversacion == "outbound");
+                var recibidos = mensajesHoy.Count(m => m.DireccionConversacion == "inbound");
+                
+                return (enviados, recibidos);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error al obtener métricas de mensajes para {Today}", today);
+                return (0, 0);
+            }
+        }
+
+        // ✅ Implementar métodos requeridos por la interfaz con fail-safe
+        public async Task<int> GetActiveConversationsCountAsync()
+        {
+            return await GetConversacionesActivasSafeAsync();
+        }
+
+        public async Task<int> GetNewClientsCountAsync(DateTime since)
+        {
+            return await GetClientesNuevosSafeAsync(since);
         }
 
         public async Task<int> GetMessagesSentTodayAsync()
@@ -97,16 +151,12 @@ namespace WhatsAppBot.Services
             try
             {
                 var today = DateTime.Today;
-                var tomorrow = today.AddDays(1);
-                
-                var mensajes = await _uow.Mensajes.GetAllAsync();
-                return mensajes.Count(m => m.Fecha >= today && 
-                                         m.Fecha < tomorrow && 
-                                         m.DireccionConversacion == "salida");
+                var (enviados, _) = await GetMensajesMetricsSafeAsync(today);
+                return enviados;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener mensajes enviados hoy");
+                _logger.LogWarning(ex, "Error al obtener mensajes enviados hoy");
                 return 0;
             }
         }
@@ -121,7 +171,7 @@ namespace WhatsAppBot.Services
                 if (totalPedidos == 0)
                     return new List<EstadoPedidoMetricDTO>();
 
-                var estadisticas = pedidos
+                return pedidos
                     .GroupBy(p => p.Estado)
                     .Select(g => new EstadoPedidoMetricDTO
                     {
@@ -132,8 +182,6 @@ namespace WhatsAppBot.Services
                     })
                     .OrderByDescending(e => e.Cantidad)
                     .ToList();
-
-                return estadisticas;
             }
             catch (Exception ex)
             {
@@ -179,10 +227,8 @@ namespace WhatsAppBot.Services
                 var today = DateTime.Today;
                 var yesterday = today.AddDays(-1);
                 
-                var pedidos = await _uow.Pedidos.GetAllAsync();
-                
-                var pedidosHoy = pedidos.Count(p => p.FechaPedido.Date == today);
-                var pedidosAyer = pedidos.Count(p => p.FechaPedido.Date == yesterday);
+                var pedidosHoy = await GetPedidosCountSafeAsync(today);
+                var pedidosAyer = await GetPedidosCountSafeAsync(yesterday);
                 
                 if (pedidosAyer == 0)
                     return pedidosHoy > 0 ? 100 : 0;
@@ -194,34 +240,6 @@ namespace WhatsAppBot.Services
                 _logger.LogError(ex, "Error al calcular trend de pedidos");
                 return 0;
             }
-        }
-
-        // Métodos privados auxiliares
-        private async Task<(int PedidosHoy, double Trend)> GetPedidosMetricsAsync(DateTime today, DateTime yesterday)
-        {
-            var pedidos = await _uow.Pedidos.GetAllAsync();
-            
-            var pedidosHoy = pedidos.Count(p => p.FechaPedido.Date == today);
-            var pedidosAyer = pedidos.Count(p => p.FechaPedido.Date == yesterday);
-            
-            var trend = pedidosAyer > 0 ? 
-                ((double)(pedidosHoy - pedidosAyer) / pedidosAyer) * 100 : 
-                (pedidosHoy > 0 ? 100 : 0);
-            
-            return (pedidosHoy, trend);
-        }
-
-        private async Task<(int Enviados, int Recibidos)> GetMessagesMetricsAsync(DateTime today)
-        {
-            var tomorrow = today.AddDays(1);
-            var mensajes = await _uow.Mensajes.GetAllAsync();
-            
-            var mensajesHoy = mensajes.Where(m => m.Fecha >= today && m.Fecha < tomorrow);
-            
-            var enviados = mensajesHoy.Count(m => m.DireccionConversacion == "salida");
-            var recibidos = mensajesHoy.Count(m => m.DireccionConversacion == "entrada");
-            
-            return (enviados, recibidos);
         }
 
         private string GetEstadoColor(string estado) => estado switch

@@ -79,5 +79,12 @@ namespace WhatsAppBot.Data.Repositories
                 .OrderBy(c => c.Nombre)
                 .ToListAsync();
         }
+
+        public async Task<int> GetNewClientsCountAsync(DateTime since)
+        {
+            return await _dbSet
+                .Where(c => c.FechaRegistro >= since && c.Activo)
+                .CountAsync();
+        }
     }
 }

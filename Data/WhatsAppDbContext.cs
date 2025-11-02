@@ -19,6 +19,9 @@ namespace WhatsAppBot.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            base.OnModelCreating(modelBuilder);
+
+            // Configuraciones de entidades
             modelBuilder.Entity<Cliente>()
                 .HasIndex(c => c.Telefono)
                 .IsUnique();
@@ -32,6 +35,12 @@ namespace WhatsAppBot.Data
             modelBuilder.Entity<Pedido>()
                 .HasKey(c => c.PedidoId);
 
+            // Configuración de relaciones (opcional pero recomendado)
+            modelBuilder.Entity<Pedido>()
+                .HasOne(p => p.Cliente)
+                .WithMany(c => c.Pedidos)
+                .HasForeignKey(p => p.ClienteId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

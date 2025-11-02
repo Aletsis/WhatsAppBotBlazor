@@ -1,0 +1,662 @@
+@page "/admin/pedidos/reportes"
+@layout AdminLayout
+@attribute [Authorize]
+@inject IPedidoService PedidoService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Reportes de Pedidos - WhatsApp Bot</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraExtraLarge" Class="py-4">
+    <!-- Header -->
+    <MudGrid Class="mb-6">
+        <MudItem xs="12">
+            <MudBreadcrumbs Items="_breadcrumbs" Class="mb-4" />
+            
+            <MudText Typo="Typo.h4" Class="mb-4">
+                <MudIcon Icon="@Icons.Material.Filled.Assessment" Class="mr-2" />
+                Reportes de Pedidos y Análisis de Ventas
+            </MudText>
+        </MudItem>
+    </MudGrid>
+
+    <!-- Filtros y Controles -->
+    <MudCard Class="mb-6">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">
+                    <MudIcon Icon="@Icons.Material.Filled.FilterList" Class="mr-2" />
+                    Filtros de Reporte
+                </MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudGrid>
+                <MudItem xs="12" md="3">
+                    <MudSelect @bind-Value="filtros.TipoReporte" 
+                               Label="Tipo de Reporte" 
+                               Variant="Variant.Outlined"
+                               OnSelectionChanged="@OnTipoReporteChanged">
+                        <MudSelectItem Value="TipoReporte.Diario">Diario</MudSelectItem>
+                        <MudSelectItem Value="TipoReporte.Semanal">Semanal</MudSelectItem>
+                        <MudSelectItem Value="TipoReporte.Mensual">Mensual</MudSelectItem>
+                        <MudSelectItem Value="TipoReporte.Trimestral">Trimestral</MudSelectItem>
+                        <MudSelectItem Value="TipoReporte.Anual">Anual</MudSelectItem>
+                        <MudSelectItem Value="TipoReporte.Personalizado">Personalizado</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                
+                @if (filtros.TipoReporte == TipoReporte.Personalizado)
+                {
+                    <MudItem xs="12" md="3">
+                        <MudDatePicker @bind-Date="filtros.FechaDesde" 
+                                       Label="Fecha Desde" 
+                                       Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudDatePicker @bind-Date="filtros.FechaHasta" 
+                                       Label="Fecha Hasta" 
+                                       Variant="Variant.Outlined" />
+                    </MudItem>
+                }
+                
+                <MudItem xs="12" md="3" Class="d-flex align-end">
+                    <MudButtonGroup Variant="Variant.Outlined" Size="Size.Medium" FullWidth>
+                        <MudButton StartIcon="@Icons.Material.Filled.Analytics" 
+                                   Color="Color.Primary"
+                                   OnClick="@GenerarReporte"
+                                   Disabled="@isLoading">
+                            @if (isLoading)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                <span class="ml-2">Generando...</span>
+                            }
+                            else
+                            {
+                                <span>Generar Reporte</span>
+                            }
+                        </MudButton>
+                        <MudButton StartIcon="@Icons.Material.Filled.FileDownload" 
+                                   Color="Color.Secondary"
+                                   OnClick="@ExportarReporte"
+                                   Disabled="@(reporte == null || isLoading)">
+                            Exportar
+                        </MudButton>
+                    </MudButtonGroup>
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+
+    @if (reporte != null)
+    {
+        <!-- Resumen Ejecutivo -->
+        <MudCard Class="mb-6">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">
+                        <MudIcon Icon="@Icons.Material.Filled.Dashboard" Class="mr-2" />
+                        Resumen Ejecutivo
+                        <MudText Typo="Typo.caption" Class="ml-2 text-muted">
+                            Del @reporte.FechaDesde.ToString("dd/MM/yyyy") al @reporte.FechaHasta.ToString("dd/MM/yyyy")
+                        </MudText>
+                    </MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudCard Style="height: 140px; background: linear-gradient(45deg, #2196F3 30%, #21CBF3 90%);">
+                            <MudCardContent Class="text-white">
+                                <div class="d-flex justify-space-between align-center">
+                                    <div>
+                                        <MudText Typo="Typo.h4">@reporte.ResumenVentas.TotalPedidos</MudText>
+                                        <MudText Typo="Typo.body2">Total Pedidos</MudText>
+                                    </div>
+                                    <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Large" />
+                                </div>
+                                <MudText Typo="Typo.caption" Class="mt-2">
+                                    Tasa Completitud: @reporte.ResumenVentas.TasaCompletitud.ToString("F1")%
+                                </MudText>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                    
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudCard Style="height: 140px; background: linear-gradient(45deg, #4CAF50 30%, #8BC34A 90%);">
+                            <MudCardContent Class="text-white">
+                                <div class="d-flex justify-space-between align-center">
+                                    <div>
+                                        <MudText Typo="Typo.h4">@reporte.ResumenVentas.PedidosCompletados</MudText>
+                                        <MudText Typo="Typo.body2">Completados</MudText>
+                                    </div>
+                                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Large" />
+                                </div>
+                                <MudText Typo="Typo.caption" Class="mt-2">
+                                    @((double)reporte.ResumenVentas.PedidosCompletados / Math.Max(reporte.ResumenVentas.TotalPedidos, 1) * 100).ToString("F1")% del total
+                                </MudText>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                    
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudCard Style="height: 140px; background: linear-gradient(45deg, #FF9800 30%, #FFC107 90%);">
+                            <MudCardContent Class="text-white">
+                                <div class="d-flex justify-space-between align-center">
+                                    <div>
+                                        <MudText Typo="Typo.h4">@reporte.ResumenVentas.PedidosPendientes</MudText>
+                                        <MudText Typo="Typo.body2">Pendientes</MudText>
+                                    </div>
+                                    <MudIcon Icon="@Icons.Material.Filled.Schedule" Size="Size.Large" />
+                                </div>
+                                <MudText Typo="Typo.caption" Class="mt-2">
+                                    En proceso y espera
+                                </MudText>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                    
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudCard Style="@GetTrendCardStyle()">
+                            <MudCardContent Class="text-white">
+                                <div class="d-flex justify-space-between align-center">
+                                    <div>
+                                        <MudText Typo="Typo.h4">@reporte.Tendencias.TendenciaSemanalDisplay</MudText>
+                                        <MudText Typo="Typo.body2">Tendencia Semanal</MudText>
+                                    </div>
+                                    <MudIcon Icon="@GetTrendIcon()" Size="Size.Large" />
+                                </div>
+                                <MudText Typo="Typo.caption" Class="mt-2">
+                                    vs. semana anterior
+                                </MudText>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+
+        <!-- Gráficos y Análisis -->
+        <MudGrid Class="mb-6">
+            <!-- Ventas por Día -->
+            <MudItem xs="12" lg="8">
+                <MudCard Style="height: 450px;">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">
+                                <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Class="mr-2" />
+                                Ventas por Día
+                            </MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        @if (reporte.VentasPorDia.Any())
+                        {
+                            <div style="height: 320px; width: 100%;">
+                                <!-- Aquí iría un componente de gráfico como Chart.js o similar -->
+                                <MudTable Items="@reporte.VentasPorDia.TakeLast(7)" Dense="true" Hover="true">
+                                    <HeaderContent>
+                                        <MudTh>Fecha</MudTh>
+                                        <MudTh>Día</MudTh>
+                                        <MudTh>Total</MudTh>
+                                        <MudTh>Completados</MudTh>
+                                        <MudTh>Cancelados</MudTh>
+                                    </HeaderContent>
+                                    <RowTemplate>
+                                        <MudTd>@context.FechaDisplay</MudTd>
+                                        <MudTd>@context.DiaSemana</MudTd>
+                                        <MudTd>
+                                            <MudChip T="string" Color="Color.Primary" Size="Size.Small">
+                                                @context.CantidadPedidos
+                                            </MudChip>
+                                        </MudTd>
+                                        <MudTd>
+                                            <MudChip T="string" Color="Color.Success" Size="Size.Small">
+                                                @context.PedidosCompletados
+                                            </MudChip>
+                                        </MudTd>
+                                        <MudTd>
+                                            <MudChip T="string" Color="Color.Error" Size="Size.Small">
+                                                @context.PedidosCancelados
+                                            </MudChip>
+                                        </MudTd>
+                                    </RowTemplate>
+                                </MudTable>
+                            </div>
+                        }
+                        else
+                        {
+                            <MudContainer Class="d-flex justify-center align-center" Style="height: 200px;">
+                                <MudText Typo="Typo.body1" Class="text-muted">No hay datos para mostrar</MudText>
+                            </MudContainer>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+
+            <!-- Estados de Pedidos -->
+            <MudItem xs="12" lg="4">
+                <MudCard Style="height: 450px;">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">
+                                <MudIcon Icon="@Icons.Material.Filled.PieChart" Class="mr-2" />
+                                Estados de Pedidos
+                            </MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        @if (reporte.VentasPorEstado.Any())
+                        {
+                            <MudList T="VentasPorEstadoDTO">
+                                @foreach (var estado in reporte.VentasPorEstado)
+                                {
+                                    <MudListItem>
+                                        <div class="d-flex justify-space-between align-center w-100">
+                                            <div class="d-flex align-center">
+                                                <MudIcon Icon="@estado.IconoMaterial" 
+                                                         Color="@GetMudColor(estado.Color)" 
+                                                         Class="mr-3" />
+                                                <div>
+                                                    <MudText Typo="Typo.body1">@estado.Estado</MudText>
+                                                    <MudText Typo="Typo.caption" Class="text-muted">
+                                                        @estado.Porcentaje.ToString("F1")%
+                                                    </MudText>
+                                                </div>
+                                            </div>
+                                            <MudChip T="string" Color="@GetMudColor(estado.Color)" Size="Size.Small">
+                                                @estado.Cantidad
+                                            </MudChip>
+                                        </div>
+                                        <MudProgressLinear Value="@estado.Porcentaje" 
+                                                          Color="@GetMudColor(estado.Color)" 
+                                                          Size="Size.Small" 
+                                                          Class="mt-2" />
+                                    </MudListItem>
+                                    <MudDivider />
+                                }
+                            </MudList>
+                        }
+                        else
+                        {
+                            <MudContainer Class="d-flex justify-center align-center" Style="height: 200px;">
+                                <MudText Typo="Typo.body1" Class="text-muted">No hay datos para mostrar</MudText>
+                            </MudContainer>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+
+        <!-- Análisis Detallado -->
+        <MudGrid Class="mb-6">
+            <!-- Top Clientes -->
+            <MudItem xs="12" lg="6">
+                <MudCard Style="height: 500px;">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">
+                                <MudIcon Icon="@Icons.Material.Filled.Stars" Class="mr-2" />
+                                Top Clientes
+                            </MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        @if (reporte.ClientesTop.Any())
+                        {
+                            <MudTable Items="@reporte.ClientesTop" Dense="true" Hover="true">
+                                <HeaderContent>
+                                    <MudTh>#</MudTh>
+                                    <MudTh>Cliente</MudTh>
+                                    <MudTh>Pedidos</MudTh>
+                                    <MudTh>Tipo</MudTh>
+                                    <MudTh>Último Pedido</MudTh>
+                                </HeaderContent>
+                                <RowTemplate Context="cliente">
+                                    <MudTd>@(reporte.ClientesTop.IndexOf(cliente) + 1)</MudTd>
+                                    <MudTd>
+                                        <div>
+                                            <MudText Typo="Typo.body2">@cliente.Nombre</MudText>
+                                            <MudText Typo="Typo.caption" Class="text-muted">@cliente.Telefono</MudText>
+                                        </div>
+                                    </MudTd>
+                                    <MudTd>
+                                        <MudChip T="string" Color="Color.Primary" Size="Size.Small">
+                                            @cliente.CantidadPedidos
+                                        </MudChip>
+                                    </MudTd>
+                                    <MudTd>
+                                        <MudChip T="string" Color="@GetClienteTipoColor(cliente.TipoCliente)" Size="Size.Small">
+                                            @cliente.TipoCliente
+                                        </MudChip>
+                                    </MudTd>
+                                    <MudTd>
+                                        <MudText Typo="Typo.caption">@cliente.UltimoPedidoDisplay</MudText>
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                        }
+                        else
+                        {
+                            <MudContainer Class="d-flex justify-center align-center" Style="height: 200px;">
+                                <MudText Typo="Typo.body1" Class="text-muted">No hay datos para mostrar</MudText>
+                            </MudContainer>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+
+            <!-- Productos Populares -->
+            <MudItem xs="12" lg="6">
+                <MudCard Style="height: 500px;">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">
+                                <MudIcon Icon="@Icons.Material.Filled.Whatshot" Class="mr-2" />
+                                Productos Más Populares
+                            </MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        @if (reporte.ProductosPopulares.Any())
+                        {
+                            <MudList T="ProductoPopularDTO">
+                                @foreach (var producto in reporte.ProductosPopulares)
+                                {
+                                    <MudListItem>
+                                        <div class="w-100">
+                                            <div class="d-flex justify-space-between align-center mb-2">
+                                                <MudText Typo="Typo.body1" Class="text-capitalize">
+                                                    @producto.Producto
+                                                </MudText>
+                                                <div class="d-flex align-center">
+                                                    <MudText Typo="Typo.body2" Class="mr-2">
+                                                        @producto.Menciones menciones
+                                                    </MudText>
+                                                    <MudText Typo="Typo.caption" Class="text-muted">
+                                                        (@producto.Porcentaje.ToString("F1")%)
+                                                    </MudText>
+                                                </div>
+                                            </div>
+                                            <MudProgressLinear Value="@producto.Porcentaje" 
+                                                              Color="Color.Primary" 
+                                                              Size="Size.Small" />
+                                            @if (producto.ClientesFrecuentes.Any())
+                                            {
+                                                <MudText Typo="Typo.caption" Class="text-muted mt-1">
+                                                    Clientes frecuentes: @string.Join(", ", producto.ClientesFrecuentes.Take(3))
+                                                </MudText>
+                                            }
+                                        </div>
+                                    </MudListItem>
+                                    <MudDivider />
+                                }
+                            </MudList>
+                        }
+                        else
+                        {
+                            <MudContainer Class="d-flex justify-center align-center" Style="height: 200px;">
+                                <MudText Typo="Typo.body1" Class="text-muted">No hay datos para mostrar</MudText>
+                            </MudContainer>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+
+        <!-- Formas de Pago y Tendencias -->
+        <MudGrid Class="mb-6">
+            <!-- Formas de Pago -->
+            <MudItem xs="12" lg="6">
+                <MudCard Style="height: 350px;">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">
+                                <MudIcon Icon="@Icons.Material.Filled.Payment" Class="mr-2" />
+                                Formas de Pago
+                            </MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        @if (reporte.VentasPorFormaPago.Any())
+                        {
+                            <MudList T="VentasPorFormapagoDTO">
+                                @foreach (var formaPago in reporte.VentasPorFormaPago)
+                                {
+                                    <MudListItem>
+                                        <div class="d-flex justify-space-between align-center w-100">
+                                            <div class="d-flex align-center">
+                                                <MudIcon Icon="@GetFormaPagoIcon(formaPago.FormaPago)" 
+                                                         Color="@GetMudColor(formaPago.Color)" 
+                                                         Class="mr-3" />
+                                                <div>
+                                                    <MudText Typo="Typo.body1">@formaPago.FormaPago</MudText>
+                                                    <MudText Typo="Typo.caption" Class="text-muted">
+                                                        @formaPago.Porcentaje.ToString("F1")%
+                                                    </MudText>
+                                                </div>
+                                            </div>
+                                            <MudChip T="string" Color="@GetMudColor(formaPago.Color)" Size="Size.Small">
+                                                @formaPago.Cantidad
+                                            </MudChip>
+                                        </div>
+                                        <MudProgressLinear Value="@formaPago.Porcentaje" 
+                                                          Color="@GetMudColor(formaPago.Color)" 
+                                                          Size="Size.Small" 
+                                                          Class="mt-2" />
+                                    </MudListItem>
+                                    <MudDivider />
+                                }
+                            </MudList>
+                        }
+                        else
+                        {
+                            <MudContainer Class="d-flex justify-center align-center" Style="height: 150px;">
+                                <MudText Typo="Typo.body1" Class="text-muted">No hay datos para mostrar</MudText>
+                            </MudContainer>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+
+            <!-- Insights y Tendencias -->
+            <MudItem xs="12" lg="6">
+                <MudCard Style="height: 350px;">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">
+                                <MudIcon Icon="@Icons.Material.Filled.Insights" Class="mr-2" />
+                                Insights y Tendencias
+                            </MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudList T="TendenciasDTO">
+                            <MudListItem>
+                                <div class="d-flex align-center w-100">
+                                    <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Color="Color.Primary" Class="mr-3" />
+                                    <div>
+                                        <MudText Typo="Typo.body1">Tendencia Mensual</MudText>
+                                        <MudText Typo="Typo.h6" Color="@(reporte.Tendencias.TendenciaMensual >= 0 ? Color.Success : Color.Error)">
+                                            @reporte.Tendencias.TendenciaMensualDisplay
+                                        </MudText>
+                                    </div>
+                                </div>
+                            </MudListItem>
+                            <MudDivider />
+                            
+                            <MudListItem>
+                                <div class="d-flex align-center w-100">
+                                    <MudIcon Icon="@Icons.Material.Filled.CalendarToday" Color="Color.Info" Class="mr-3" />
+                                    <div>
+                                        <MudText Typo="Typo.body1">Mejor Día de la Semana</MudText>
+                                        <MudText Typo="Typo.h6" Color="Color.Info">
+                                            @reporte.Tendencias.MejorDiaSemana
+                                        </MudText>
+                                    </div>
+                                </div>
+                            </MudListItem>
+                            <MudDivider />
+                            
+                            <MudListItem>
+                                <div class="d-flex align-center w-100">
+                                    <MudIcon Icon="@Icons.Material.Filled.Schedule" Color="Color.Warning" Class="mr-3" />
+                                    <div>
+                                        <MudText Typo="Typo.body1">Hora Pico</MudText>
+                                        <MudText Typo="Typo.h6" Color="Color.Warning">
+                                            @reporte.Tendencias.HoraPico
+                                        </MudText>
+                                    </div>
+                                </div>
+                            </MudListItem>
+                            <MudDivider />
+                            
+                            <MudListItem>
+                                <div class="d-flex align-center w-100">
+                                    <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Color="Color.Success" Class="mr-3" />
+                                    <div>
+                                        <MudText Typo="Typo.body1">Clientes Nuevos</MudText>
+                                        <MudText Typo="Typo.h6" Color="Color.Success">
+                                            +@reporte.Tendencias.CrecimientoClientesNuevos este mes
+                                        </MudText>
+                                    </div>
+                                </div>
+                            </MudListItem>
+                        </MudList>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+    }
+    else if (!isLoading)
+    {
+        <!-- Placeholder cuando no hay reporte -->
+        <MudCard>
+            <MudCardContent>
+                <MudContainer Class="d-flex flex-column justify-center align-center" Style="height: 400px;">
+                    <MudIcon Icon="@Icons.Material.Filled.Assessment" Size="Size.Large" Class="mb-4 text-muted" />
+                    <MudText Typo="Typo.h6" Class="text-muted">Selecciona un tipo de reporte y genera el análisis</MudText>
+                    <MudText Typo="Typo.body2" Class="text-muted mb-4">
+                        Los reportes te ayudarán a entender mejor las tendencias de ventas y el comportamiento de tus clientes.
+                    </MudText>
+                    <MudButton Variant="Variant.Filled" 
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Analytics"
+                               OnClick="@(() => { filtros.TipoReporte = TipoReporte.Semanal; GenerarReporte(); })">
+                        Generar Reporte Semanal
+                    </MudButton>
+                </MudContainer>
+            </MudCardContent>
+        </MudCard>
+    }
+</MudContainer>
+
+@code {
+    private ReportePedidosDTO? reporte;
+    private ReporteFiltrosDTO filtros = new() { TipoReporte = TipoReporte.Semanal };
+    private bool isLoading = false;
+
+    private List<BreadcrumbItem> _breadcrumbs = new()
+    {
+        new BreadcrumbItem("Inicio", href: "/admin", icon: Icons.Material.Filled.Home),
+        new BreadcrumbItem("Pedidos", href: "/pedidos", icon: Icons.Material.Filled.ShoppingCart),
+        new BreadcrumbItem("Reportes", href: null, disabled: true, icon: Icons.Material.Filled.Assessment)
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Generar reporte semanal por defecto
+        await GenerarReporte();
+    }
+
+    private async Task GenerarReporte()
+    {
+        isLoading = true;
+        try
+        {
+            reporte = await PedidoService.GenerarReporteAsync(filtros);
+            Snackbar.Add("Reporte generado exitosamente", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al generar reporte: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ExportarReporte()
+    {
+        if (reporte == null) return;
+
+        try
+        {
+            var contenido = await PedidoService.ExportarReporteAsync(filtros, "PDF");
+            await JSRuntime.InvokeVoidAsync("downloadFile", "reporte-pedidos.txt", Convert.ToBase64String(contenido));
+            Snackbar.Add("Reporte exportado exitosamente", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al exportar reporte: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private Task OnTipoReporteChanged()
+    {
+        if (filtros.TipoReporte != TipoReporte.Personalizado)
+        {
+            filtros.FechaDesde = null;
+            filtros.FechaHasta = null;
+        }
+        return Task.CompletedTask;
+    }
+
+    // Métodos auxiliares para UI
+    private string GetTrendColor() => reporte?.Tendencias.TendenciaSemanal >= 0 ? "#4CAF50" : "#F44336";
+    private string GetTrendColorLight() => reporte?.Tendencias.TendenciaSemanal >= 0 ? "#8BC34A" : "#FF5722";
+    private string GetTrendIcon() => reporte?.Tendencias.TendenciaSemanal >= 0 ? Icons.Material.Filled.TrendingUp : Icons.Material.Filled.TrendingDown;
+    private string GetTrendCardStyle() => $"height: 140px; background: linear-gradient(45deg, {GetTrendColor()} 30%, {GetTrendColorLight()} 90%);";
+
+    private Color GetMudColor(string color) => color switch
+    {
+        "success" => Color.Success,
+        "warning" => Color.Warning,
+        "error" => Color.Error,
+        "info" => Color.Info,
+        "primary" => Color.Primary,
+        _ => Color.Default
+    };
+
+    private Color GetClienteTipoColor(string tipo) => tipo switch
+    {
+        "VIP" => Color.Secondary,
+        "Frecuente" => Color.Info,
+        "Regular" => Color.Default,
+        _ => Color.Default
+    };
+
+    private string GetFormaPagoIcon(string formaPago) => formaPago?.ToLower() switch
+    {
+        "efectivo" => Icons.Material.Filled.Money,
+        "tarjeta" => Icons.Material.Filled.CreditCard,
+        "transferencia" => Icons.Material.Filled.AccountBalance,
+        "contado" => Icons.Material.Filled.Money,
+        "credito" => Icons.Material.Filled.Payment,
+        _ => Icons.Material.Filled.Payment
+    };
+}
+
+<script>
+    window.downloadFile = (filename, content) => {
+        const element = document.createElement('a');
+        element.setAttribute('href', 'data:text/plain;base64,' + content);
+        element.setAttribute('download', filename);
+        element.style.display = 'none';
+        document.body.appendChild(element);
+        element.click();
+        document.body.removeChild(element);
+    };
+</script>

@@ -3,46 +3,189 @@
 @using Microsoft.AspNetCore.Identity
 @inject SignInManager<IdentityUser> SignInManager
 @inject NavigationManager NavigationManager
+@inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@rendermode InteractiveServer
 
-<MudCard>
-    <MudCardHeader>
-        <MudText Typo="Typo.h5">Iniciar Sesión</MudText>
-    </MudCardHeader>
-    <MudCardContent>
-        <MudTextField @bind-Value="email" Label="Email" Variant="Variant.Outlined"/>
-        <MudTextField @bind-Value="password" Label="Contraseña" Variant="Variant.Outlined" 
-                     InputType="InputType.Password"/>
-    </MudCardContent>
-    <MudCardActions>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" 
-                  OnClick="HandleLogin">Ingresar</MudButton>
-    </MudCardActions>
-</MudCard>
+<PageTitle>Login - Panel Administrativo</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-16">
+    <MudPaper Elevation="4" Class="pa-8">
+        <MudStack Spacing="4">
+            <MudText Typo="Typo.h4" Align="Align.Center" Color="Color.Primary">
+                <MudIcon Icon="Icons.Material.Filled.AdminPanelSettings" Size="Size.Large" Class="mr-2"/>
+                Panel Administrativo
+            </MudText>
+            
+            <MudDivider />
+            
+            <MudStack Spacing="3">
+                <MudTextField @bind-Value="email" 
+                            Label="Email" 
+                            Variant="Variant.Outlined"
+                            @onkeydown="HandleKeyDown"
+                            HelperText="admin@whatsappbot.com"/>
+                
+                <MudTextField @bind-Value="password" 
+                            Label="Contraseña" 
+                            Variant="Variant.Outlined" 
+                            InputType="InputType.Password"
+                            @onkeydown="HandleKeyDown"
+                            HelperText="Admin123!"/>
+                
+                <MudButton OnClick="HandleLogin"
+                         Variant="Variant.Filled" 
+                         Color="Color.Primary" 
+                         Size="Size.Large"
+                         FullWidth="true"
+                         StartIcon="Icons.Material.Filled.Login"
+                         Disabled="isLoading">
+                    @if (isLoading)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2"/>
+                        <MudText>Verificando...</MudText>
+                    }
+                    else
+                    {
+                        <MudText>Iniciar Sesión</MudText>
+                    }
+                </MudButton>
+            </MudStack>
+            
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Variant="Variant.Filled">
+                    @errorMessage
+                </MudAlert>
+            }
+            
+            @if (!string.IsNullOrEmpty(debugInfo))
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                    <strong>Debug:</strong> @debugInfo
+                </MudAlert>
+            }
+            
+            <MudDivider />
+            
+            <MudText Typo="Typo.caption" Align="Align.Center" Color="Color.Secondary">
+                Sistema WhatsApp Bot - Panel de Administración
+            </MudText>
+        </MudStack>
+    </MudPaper>
+</MudContainer>
 
 @code {
-    private string email = string.Empty;
-    private string password = string.Empty;
+    private string email = "admin@whatsappbot.com";
+    private string password = "Admin123!";
+    private bool isLoading = false;
+    private string errorMessage = string.Empty;
+    private string debugInfo = string.Empty;
 
-    private async Task HandleLogin()
+    protected override async Task OnInitializedAsync()
     {
+        debugInfo = "Componente de login inicializado";
+        Console.WriteLine("🔍 Verificando estado de autenticación...");
         try
         {
-            var result = await SignInManager.PasswordSignInAsync(email, password, false, false);
-            
-            if (result.Succeeded)
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (authState.User.Identity?.IsAuthenticated == true)
             {
-                NavigationManager.NavigateTo("/admin");
-            }
-            else
-            {
-                // Mostrar error - aquí podrías usar ISnackbar o similar
-                // Por ejemplo: Snackbar.Add("Credenciales inválidas", Severity.Error);
+                Console.WriteLine("✅ Usuario ya autenticado, redirigiendo...");
+                debugInfo = "Usuario ya autenticado, redirigiendo...";
+                NavigationManager.NavigateTo("/admin/dashboard");
             }
         }
         catch (Exception ex)
         {
-            // Manejar error
-            Console.WriteLine($"Error al iniciar sesión: {ex.Message}");
+            Console.WriteLine($"❌ Error verificando autenticación: {ex.Message}");
+            debugInfo = $"Error verificando autenticación: {ex.Message}";
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        Console.WriteLine($"Tecla presionada: {e.Key}");
+        if (e.Key == "Enter" && !isLoading)
+        {
+            Console.WriteLine("🔑 Intentando login...");
+            await HandleLogin();
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        Console.WriteLine("🔐 Iniciando proceso de login...");
+        if (isLoading) return;
+        
+        errorMessage = string.Empty;
+        debugInfo = "Iniciando proceso de login...";
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            // Validaciones básicas
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                errorMessage = "El email es requerido";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(password))
+            {
+                errorMessage = "La contraseña es requerida";
+                return;
+            }
+
+            debugInfo = $"Intentando autenticar: {email}";
+            StateHasChanged();
+
+            var result = await SignInManager.PasswordSignInAsync(
+                email.Trim(), 
+                password, 
+                isPersistent: true, 
+                lockoutOnFailure: false);
+            
+            debugInfo = $"Resultado: Succeeded={result.Succeeded}";
+            
+            if (result.Succeeded)
+            {
+                debugInfo = "Login exitoso, redirigiendo...";
+                Snackbar.Add("¡Login exitoso!", Severity.Success);
+                
+                // Pequeño delay para asegurar que la autenticación se procese
+                await Task.Delay(500);
+                
+                NavigationManager.NavigateTo("/admin/dashboard", forceLoad: true);
+            }
+            else if (result.IsLockedOut)
+            {
+                errorMessage = "Cuenta bloqueada temporalmente.";
+                debugInfo = "Usuario bloqueado";
+            }
+            else if (result.RequiresTwoFactor)
+            {
+                errorMessage = "Se requiere autenticación de dos factores.";
+                debugInfo = "2FA requerido";
+            }
+            else
+            {
+                errorMessage = "Email o contraseña incorrectos.";
+                debugInfo = "Credenciales inválidas";
+                Snackbar.Add("Credenciales incorrectas", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error durante el login: {ex.Message}";
+            debugInfo = $"Excepción: {ex.GetType().Name} - {ex.Message}";
+            Snackbar.Add("Error en el sistema de login", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
         }
     }
 }

@@ -1,6 +1,40 @@
 ﻿<Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <Authorizing>
+                <MudContainer Class="d-flex flex-column align-center justify-center" Style="height: 70vh;">
+                    <MudProgressCircular Indeterminate="true" Size="Size.Large" Color="Color.Primary"/>
+                    <MudText Typo="Typo.h6" Class="mt-4">Verificando permisos...</MudText>
+                </MudContainer>
+            </Authorizing>
+            <NotAuthorized>
+                @if (context.User.Identity?.IsAuthenticated != true)
+                {
+                    <RedirectToLoginComponent />
+                }
+                else
+                {
+                    <MudContainer Class="d-flex flex-column align-center justify-center" Style="height: 70vh;">
+                        <MudIcon Icon="@Icons.Material.Filled.NoAccounts" 
+                                Size="Size.Large" 
+                                Color="Color.Error" />
+                        <MudText Typo="Typo.h4" Class="mt-4">
+                            Acceso Denegado
+                        </MudText>
+                        <MudText Typo="Typo.body1" Class="mt-2 text-center">
+                            No tienes permisos para acceder a esta página.
+                        </MudText>
+                        <MudButton Href="/admin/login" 
+                                  Variant="Variant.Filled" 
+                                  Color="Color.Primary" 
+                                  StartIcon="@Icons.Material.Filled.Login"
+                                  Class="mt-4">
+                            Iniciar Sesión
+                        </MudButton>
+                    </MudContainer>
+                }
+            </NotAuthorized>
+        </AuthorizeRouteView>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
     <NotFound>
@@ -24,7 +58,7 @@
                               Class="mr-2">
                         Ir al inicio
                     </MudButton>
-                    <MudButton Href="/admin" 
+                    <MudButton Href="/admin/login" 
                               Variant="Variant.Outlined" 
                               Color="Color.Primary" 
                               StartIcon="@Icons.Material.Filled.AdminPanelSettings">
@@ -35,3 +69,17 @@
         </LayoutView>
     </NotFound>
 </Router>
+
+@code {
+    // ✅ Componente para redirección al login
+    private class RedirectToLoginComponent : ComponentBase
+    {
+        [Inject]
+        private NavigationManager Navigation { get; set; } = default!;
+
+        protected override void OnInitialized()
+        {
+            Navigation.NavigateTo("/admin/login", forceLoad: true);
+        }
+    }
+}

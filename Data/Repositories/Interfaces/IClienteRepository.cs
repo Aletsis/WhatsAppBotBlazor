@@ -12,5 +12,6 @@ namespace WhatsAppBot.Data.Repositories.Interfaces
         Task<bool> ExistsPhoneAsync(string telefono, int? excludeClienteId = null);
         Task<int> GetTotalActiveCountAsync();
         Task<IEnumerable<Cliente>> SearchByNameOrPhoneAsync(string searchTerm);
+        Task<int> GetNewClientsCountAsync(DateTime since);
     }
 }

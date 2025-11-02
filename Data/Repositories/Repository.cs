@@ -20,7 +20,14 @@ namespace WhatsAppBot.Data.Repositories
             return await _dbSet.FindAsync(id);
         }
 
+        // ✅ SOLUCIÓN: Usar AsNoTracking para consultas de solo lectura
         public virtual async Task<IEnumerable<T>> GetAllAsync()
+        {
+            return await _dbSet.AsNoTracking().ToListAsync();
+        }
+
+        // ✅ Método adicional para consultas con tracking cuando sea necesario
+        public virtual async Task<IEnumerable<T>> GetAllWithTrackingAsync()
         {
             return await _dbSet.ToListAsync();
         }
@@ -30,6 +37,7 @@ namespace WhatsAppBot.Data.Repositories
             await _dbSet.AddAsync(entity);
             return entity;
         }
+
         public virtual async Task UpdateAsync(T entity)
         {
             _dbSet.Update(entity);
