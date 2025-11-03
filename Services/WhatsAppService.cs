@@ -3,6 +3,8 @@ using System.Text;
 using System.Text.Json;
 using WhatsAppBot.Models;
 using WhatsAppBot.Services.Interfaces;
+using WhatsAppBot.Configuration;
+using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Retry;
 
@@ -11,14 +13,17 @@ namespace WhatsAppBot.Services
     public class WhatsAppService : IWhatsAppService
     {
         private readonly IHttpClientFactory _httpClientFactory;
-        private readonly IConfiguration _config;
+        private readonly WhatsAppSettings _settings;
         private readonly AsyncRetryPolicy<bool> _retryPolicy;
         private readonly ILogger<WhatsAppService> _logger;
 
-        public WhatsAppService(IHttpClientFactory httpClientFactory, IConfiguration config, ILogger<WhatsAppService> logger)
+        public WhatsAppService(
+            IHttpClientFactory httpClientFactory,
+            IOptions<WhatsAppSettings> settings,
+            ILogger<WhatsAppService> logger)
         {
             _httpClientFactory = httpClientFactory;
-            _config = config;
+            _settings = settings.Value;
             _logger = logger;
 
             _retryPolicy = Policy<bool>
@@ -44,14 +49,9 @@ namespace WhatsAppBot.Services
             {
                 try
                 {
-                    string? token = _config["WhatsApp:Token"];
-                    string? phoneNumberId = _config["WhatsApp:PhoneNumberId"];
-
-                    if (string.IsNullOrWhiteSpace(token))
-                        throw new InvalidOperationException("El token de WhatsApp no está configurado. Revisa appsettings.json");
-
-                    if (string.IsNullOrWhiteSpace(phoneNumberId))
-                        throw new InvalidOperationException("El PhoneNumberId de WhatsApp no está configurado. Revisa appsettings.json");
+                    // ✅ Usar configuración segura desde Options Pattern
+                    string token = _settings.Token;
+                    string phoneNumberId = _settings.PhoneNumberId;
 
                     var url = $"https://graph.facebook.com/v22.0/{phoneNumberId}/messages";
 
@@ -68,13 +68,14 @@ namespace WhatsAppBot.Services
 
                     var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
-                    Console.WriteLine($"📤 Enviando mensaje a: {url}");
+                    _logger.LogDebug("📤 Enviando mensaje a: {Url}", url);
 
                     var response = await http.PostAsync(url, content);
 
                     var responseText = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"📥 Respuesta de Meta: {response.StatusCode} - {responseText}");
+                    _logger.LogDebug("📥 Respuesta de Meta: {StatusCode} - {Response}", response.StatusCode, responseText);
 
+                    response.EnsureSuccessStatusCode();
                     return true;
                 }
                 catch (Exception ex)
@@ -91,14 +92,9 @@ namespace WhatsAppBot.Services
             {
                 try
                 {
-                    string? token = _config["WhatsApp:Token"];
-                    string? phoneNumberId = _config["WhatsApp:PhoneNumberId"];
-
-                    if (string.IsNullOrWhiteSpace(token))
-                        throw new InvalidOperationException("El token de WhatsApp no está configurado. Revisa appsettings.json");
-
-                    if (string.IsNullOrWhiteSpace(phoneNumberId))
-                        throw new InvalidOperationException("El PhoneNumberId de WhatsApp no está configurado. Revisa appsettings.json");
+                    // ✅ Usar configuración segura desde Options Pattern
+                    string token = _settings.Token;
+                    string phoneNumberId = _settings.PhoneNumberId;
 
                     var url = $"https://graph.facebook.com/v22.0/{phoneNumberId}/messages";
 
@@ -127,13 +123,14 @@ namespace WhatsAppBot.Services
 
                     var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
-                    Console.WriteLine($"📤 Enviando mensaje interactivo a: {url}");
+                    _logger.LogDebug("📤 Enviando mensaje interactivo a: {Url}", url);
 
                     var response = await http.PostAsync(url, content);
                     var responseText = await response.Content.ReadAsStringAsync();
 
-                    Console.WriteLine($"📥 Respuesta de Meta (interactivo): {response.StatusCode} - {responseText}");
+                    _logger.LogDebug("📥 Respuesta de Meta (interactivo): {StatusCode} - {Response}", response.StatusCode, responseText);
 
+                    response.EnsureSuccessStatusCode();
                     return true;
                 }
                 catch (Exception ex)

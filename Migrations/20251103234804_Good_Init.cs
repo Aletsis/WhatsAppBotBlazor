@@ -6,42 +6,11 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace WhatsAppBot.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreateWithIdentity : Migration
+    public partial class Good_Init : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "Context",
-                table: "MensajesWhatsApp",
-                type: "nvarchar(max)",
-                nullable: true);
-
-            migrationBuilder.AddColumn<bool>(
-                name: "IsIncoming",
-                table: "MensajesWhatsApp",
-                type: "bit",
-                nullable: false,
-                defaultValue: false);
-
-            migrationBuilder.AddColumn<string>(
-                name: "MessageId",
-                table: "MensajesWhatsApp",
-                type: "nvarchar(max)",
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "SendByUserId",
-                table: "MensajesWhatsApp",
-                type: "nvarchar(max)",
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "SentByUserId",
-                table: "MensajesWhatsApp",
-                type: "nvarchar(450)",
-                nullable: true);
-
             migrationBuilder.CreateTable(
                 name: "AspNetRoles",
                 columns: table => new
@@ -79,6 +48,36 @@ namespace WhatsAppBot.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_AspNetUsers", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Clientes",
+                columns: table => new
+                {
+                    ClienteId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Nombre = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Telefono = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    Direccion = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    FechaRegistro = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Activo = table.Column<bool>(type: "bit", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Clientes", x => x.ClienteId);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "EstadosConversacion",
+                columns: table => new
+                {
+                    Telefono = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    EstadoActual = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    UltimaActualizacion = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_EstadosConversacion", x => x.Telefono);
                 });
 
             migrationBuilder.CreateTable(
@@ -127,8 +126,8 @@ namespace WhatsAppBot.Migrations
                 name: "AspNetUserLogins",
                 columns: table => new
                 {
-                    LoginProvider = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
-                    ProviderKey = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
+                    LoginProvider = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    ProviderKey = table.Column<string>(type: "nvarchar(450)", nullable: false),
                     ProviderDisplayName = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     UserId = table.Column<string>(type: "nvarchar(450)", nullable: false)
                 },
@@ -172,8 +171,8 @@ namespace WhatsAppBot.Migrations
                 columns: table => new
                 {
                     UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    LoginProvider = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
-                    Name = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
+                    LoginProvider = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(450)", nullable: false),
                     Value = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
@@ -187,10 +186,57 @@ namespace WhatsAppBot.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
-            migrationBuilder.CreateIndex(
-                name: "IX_MensajesWhatsApp_SentByUserId",
-                table: "MensajesWhatsApp",
-                column: "SentByUserId");
+            migrationBuilder.CreateTable(
+                name: "MensajesWhatsApp",
+                columns: table => new
+                {
+                    MensajeId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Telefono = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    MensajeTexto = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    DireccionConversacion = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Fecha = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    EstadoConversacion = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    IsIncoming = table.Column<bool>(type: "bit", nullable: false),
+                    MessageId = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    SendByUserId = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    SentByUserId = table.Column<string>(type: "nvarchar(450)", nullable: true),
+                    Context = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_MensajesWhatsApp", x => x.MensajeId);
+                    table.ForeignKey(
+                        name: "FK_MensajesWhatsApp_AspNetUsers_SentByUserId",
+                        column: x => x.SentByUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Pedidos",
+                columns: table => new
+                {
+                    PedidoId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ClienteId = table.Column<int>(type: "int", nullable: false),
+                    FechaPedido = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DetallePedido = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    FormaPago = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    DireccionEntrega = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Estado = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Folio = table.Column<string>(type: "nvarchar(max)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Pedidos", x => x.PedidoId);
+                    table.ForeignKey(
+                        name: "FK_Pedidos_Clientes_ClienteId",
+                        column: x => x.ClienteId,
+                        principalTable: "Clientes",
+                        principalColumn: "ClienteId",
+                        onDelete: ReferentialAction.Cascade);
+                });
 
             migrationBuilder.CreateIndex(
                 name: "IX_AspNetRoleClaims_RoleId",
@@ -231,21 +277,26 @@ namespace WhatsAppBot.Migrations
                 unique: true,
                 filter: "[NormalizedUserName] IS NOT NULL");
 
-            migrationBuilder.AddForeignKey(
-                name: "FK_MensajesWhatsApp_AspNetUsers_SentByUserId",
+            migrationBuilder.CreateIndex(
+                name: "IX_Clientes_Telefono",
+                table: "Clientes",
+                column: "Telefono",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MensajesWhatsApp_SentByUserId",
                 table: "MensajesWhatsApp",
-                column: "SentByUserId",
-                principalTable: "AspNetUsers",
-                principalColumn: "Id");
+                column: "SentByUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Pedidos_ClienteId",
+                table: "Pedidos",
+                column: "ClienteId");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropForeignKey(
-                name: "FK_MensajesWhatsApp_AspNetUsers_SentByUserId",
-                table: "MensajesWhatsApp");
-
             migrationBuilder.DropTable(
                 name: "AspNetRoleClaims");
 
@@ -262,34 +313,22 @@ namespace WhatsAppBot.Migrations
                 name: "AspNetUserTokens");
 
             migrationBuilder.DropTable(
+                name: "EstadosConversacion");
+
+            migrationBuilder.DropTable(
+                name: "MensajesWhatsApp");
+
+            migrationBuilder.DropTable(
+                name: "Pedidos");
+
+            migrationBuilder.DropTable(
                 name: "AspNetRoles");
 
             migrationBuilder.DropTable(
                 name: "AspNetUsers");
 
-            migrationBuilder.DropIndex(
-                name: "IX_MensajesWhatsApp_SentByUserId",
-                table: "MensajesWhatsApp");
-
-            migrationBuilder.DropColumn(
-                name: "Context",
-                table: "MensajesWhatsApp");
-
-            migrationBuilder.DropColumn(
-                name: "IsIncoming",
-                table: "MensajesWhatsApp");
-
-            migrationBuilder.DropColumn(
-                name: "MessageId",
-                table: "MensajesWhatsApp");
-
-            migrationBuilder.DropColumn(
-                name: "SendByUserId",
-                table: "MensajesWhatsApp");
-
-            migrationBuilder.DropColumn(
-                name: "SentByUserId",
-                table: "MensajesWhatsApp");
+            migrationBuilder.DropTable(
+                name: "Clientes");
         }
     }
 }
